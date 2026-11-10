@@ -24,6 +24,11 @@
   .card .val { font-size: 20px; font-weight: 600; }
   .card .sub { font-size: 12px; min-height: 16px; }
   .card.na .val { opacity: .4; }
+  #filters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 10px 0; font-size: 13px; }
+  #filters input[type=number] { width: 90px; }
+  #filters input[type=checkbox] { width: auto; }
+  #filters label { display: inline-flex; gap: 4px; align-items: center; }
+  #filters button { padding: 4px 10px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -31,6 +36,22 @@
 <small id="updated">Memuat…</small><br>
 <section id="macro"><div id="macro-cards"></div><small id="macro-meta"></small></section>
 <input id="q" placeholder="Cari kode, mis. BBCA"> <small id="count"></small>
+<div id="filters">
+  <label>Harga <input type="number" id="f-pmin" placeholder="min"> - <input type="number" id="f-pmax" placeholder="maks"></label>
+  <label>Nilai ≥ <input type="number" id="f-vmin" placeholder="miliar Rp"></label>
+  <label>RSI <input type="number" id="f-rmin" placeholder="min"> - <input type="number" id="f-rmax" placeholder="maks"></label>
+  <label>Chg % ≥ <input type="number" id="f-cmin" step="0.1" placeholder="min"></label>
+  <label><input type="checkbox" id="f-sma20"> Harga &gt; SMA20</label>
+  <label><input type="checkbox" id="f-sma50"> Harga &gt; SMA50</label>
+  <label><input type="checkbox" id="f-trend"> SMA20 &gt; SMA50</label>
+  <span>
+    <button data-preset="oversold">Oversold</button>
+    <button data-preset="overbought">Overbought</button>
+    <button data-preset="uptrend">Uptrend</button>
+    <button data-preset="gainers">Naik kuat</button>
+    <button data-preset="reset">Reset</button>
+  </span>
+</div>
 <div id="wrap">
 <table>
   <thead><tr id="head"></tr></thead>
@@ -68,7 +89,7 @@ async function showChart(sym) {
 function render() {
   const q = document.getElementById("q").value.trim().toUpperCase();
   const list = stocks
-    .filter(s => !q || s.symbol.includes(q))
+    .filter(s => (!q || s.symbol.includes(q)) && passFilters(s))
     .sort((a, b) => {
       const x = a[sortKey], y = b[sortKey];
       if (x == null) return 1;
@@ -137,6 +158,46 @@ async function loadMacro() {
   }
 }
 
+const inum = id => { const v = document.getElementById(id).value; return v === "" ? null : Number(v); };
+const ichk = id => document.getElementById(id).checked;
+
+function passFilters(s) {
+  const pmin = inum("f-pmin"), pmax = inum("f-pmax"), vmin = inum("f-vmin");
+  const rmin = inum("f-rmin"), rmax = inum("f-rmax"), cmin = inum("f-cmin");
+  if (pmin != null && !(s.price >= pmin)) return false;
+  if (pmax != null && !(s.price <= pmax)) return false;
+  if (vmin != null && !((s.value || 0) >= vmin * 1e9)) return false;
+  if (rmin != null && !(s.rsi14 != null && s.rsi14 >= rmin)) return false;
+  if (rmax != null && !(s.rsi14 != null && s.rsi14 <= rmax)) return false;
+  if (cmin != null && !(s.change_pct != null && s.change_pct >= cmin)) return false;
+  if (ichk("f-sma20") && !(s.sma20 != null && s.price > s.sma20)) return false;
+  if (ichk("f-sma50") && !(s.sma50 != null && s.price > s.sma50)) return false;
+  if (ichk("f-trend") && !(s.sma20 != null && s.sma50 != null && s.sma20 > s.sma50)) return false;
+  return true;
+}
+
+function resetFilters() {
+  document.querySelectorAll("#filters input").forEach(el => {
+    if (el.type === "checkbox") el.checked = false; else el.value = "";
+  });
+}
+
+const presets = {
+  oversold:   { rmax: 30, vmin: 1 },
+  overbought: { rmin: 70, vmin: 1 },
+  uptrend:    { sma20: true, sma50: true, trend: true, vmin: 1 },
+  gainers:    { cmin: 3, vmin: 1 },
+};
+
+function applyPreset(name) {
+  resetFilters();
+  for (const [k, v] of Object.entries(presets[name] || {})) {
+    const el = document.getElementById("f-" + k);
+    if (el.type === "checkbox") el.checked = v; else el.value = v;
+  }
+  render();
+}
+
 async function main() {
   loadMacro();
   const head = document.getElementById("head");
@@ -151,6 +212,13 @@ async function main() {
     if (tr) showChart(tr.dataset.s);
   };
   document.getElementById("q").oninput = render;
+  document.getElementById("filters").addEventListener("input", render);
+  document.getElementById("filters").addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.preset === "reset") { resetFilters(); render(); }
+    else applyPreset(b.dataset.preset);
+  });
 
   const s = await (await fetch("data/summary.json")).json();
   stocks = s.stocks;
