@@ -3,3 +3,5 @@ __pycache__/
 docs/data/prices/
 docs/data/summary.json
 docs/data/data.json
+docs/data/fundamentals/
+docs/data/fundamentals.json

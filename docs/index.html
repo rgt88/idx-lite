@@ -29,6 +29,10 @@
   #filters input[type=checkbox] { width: auto; }
   #filters label { display: inline-flex; gap: 4px; align-items: center; }
   #filters button { padding: 4px 10px; cursor: pointer; }
+  #fund { margin-top: 12px; font-size: 13px; overflow-x: auto; }
+  #fund h3 { margin: 14px 0 4px; font-size: 14px; }
+  #fund table { width: auto; min-width: 100%; }
+  #fund th { position: static; cursor: default; }
 </style>
 </head>
 <body>
@@ -60,6 +64,7 @@
 </div>
 <h2 id="title"></h2>
 <div id="chart"></div>
+<div id="fund"></div>
 <p><small>Data tertunda dari Yahoo Finance. Hanya informasi, bukan saran investasi.</small></p>
 
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
@@ -71,8 +76,59 @@ const cols = [
 ];
 let stocks = [], sortKey = "value", sortDir = -1, chart, series;
 
+const bigFmt = n => {
+  if (n == null) return "-";
+  const a = Math.abs(n);
+  if (a >= 1e12) return fmt(n / 1e12, 2) + " T";
+  if (a >= 1e9) return fmt(n / 1e9, 1) + " M";
+  if (a >= 1e6) return fmt(n / 1e6, 1) + " jt";
+  return fmt(n);
+};
+const pctCell = v => v == null ? "-" :
+  `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${fmt(v, 1)}%</span>`;
+const qLabel = d => { const [y, m] = d.split("-"); return `${y} Q${Math.ceil(Number(m) / 3)}`; };
+
+function fundTable(rows, annual) {
+  if (!rows || !rows.length) return "";
+  const body = rows.slice().reverse().map(r => `<tr>
+    <td>${annual ? r.date.slice(0, 4) : qLabel(r.date)}</td>
+    <td>${bigFmt(r.revenue)}</td>${annual ? "" : `<td>${pctCell(r.rev_qoq)}</td>`}<td>${pctCell(r.rev_yoy)}</td>
+    <td>${bigFmt(r.net_income)}</td>${annual ? "" : `<td>${pctCell(r.ni_qoq)}</td>`}<td>${pctCell(r.ni_yoy)}</td>
+    <td>${r.eps == null ? "-" : fmt(r.eps, 2)}</td></tr>`).join("");
+  const head = annual
+    ? "<th>Tahun</th><th>Pendapatan</th><th>YoY</th><th>Laba bersih</th><th>YoY</th><th>EPS</th>"
+    : "<th>Kuartal</th><th>Pendapatan</th><th>QoQ</th><th>YoY</th><th>Laba bersih</th><th>QoQ</th><th>YoY</th><th>EPS</th>";
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+let fundSummary = null;
+async function loadFund(sym) {
+  const box = document.getElementById("fund");
+  box.innerHTML = "";
+  try {
+    if (!fundSummary) fundSummary = (await (await fetch("data/fundamentals.json")).json()).stocks || {};
+    const s = fundSummary[sym] || {};
+    const d = await (await fetch(`data/fundamentals/${sym}.json`)).json();
+    const snap = [
+      ["P/E", s.pe == null ? "-" : fmt(s.pe, 1)],
+      ["P/B", s.pb == null ? "-" : fmt(s.pb, 2)],
+      ["Dividen", s.div_yield == null ? "-" : fmt(s.div_yield, 2) + "%"],
+      ["ROE", s.roe == null ? "-" : fmt(s.roe, 1) + "%"],
+      ["Mkt cap", bigFmt(s.mcap)],
+    ].map(([k, v]) => `<b>${k}</b> ${v}`).join(" &nbsp;·&nbsp; ");
+    box.innerHTML = `<h3>Fundamental ${esc(sym)}</h3><div>${snap}</div>
+      <h3>Kinerja kuartalan</h3>${fundTable(d.quarters, false) || "<small>Tidak ada data kuartalan.</small>"}
+      <h3>Kinerja tahunan</h3>${fundTable(d.annual, true) || "<small>Tidak ada data tahunan.</small>"}
+      <p><small>Sumber: Yahoo Finance. Mata uang laporan: ${esc(d.currency || "?")}.
+      Angka kuartalan perusahaan IDX bisa bersifat kumulatif (YTD); cocokkan dengan laporan resmi.</small></p>`;
+  } catch (e) {
+    box.innerHTML = "<small>Data fundamental saham ini belum tersedia (diperbarui bertahap).</small>";
+  }
+}
+
 async function showChart(sym) {
   document.getElementById("title").textContent = sym;
+  loadFund(sym);
   const rows = await (await fetch(`data/prices/${sym}.json`)).json();
   if (!chart) {
     chart = LightweightCharts.createChart(document.getElementById("chart"), {

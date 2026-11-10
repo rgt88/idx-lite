@@ -53,6 +53,18 @@ jobs:
             echo "Lewati update harga pada run ini"
           fi
 
+      - name: Update fundamental (bertahap)
+        continue-on-error: true
+        env:
+          SCHED: ${{ github.event.schedule }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ] || [ "$SCHED" = "30 9 * * 1-5" ]; then
+            python scripts/fetch_fundamentals.py --max 100
+          else
+            echo "Lewati update fundamental pada run ini"
+          fi
+
       - name: Deploy ke gh-pages
         run: |
           cd docs
