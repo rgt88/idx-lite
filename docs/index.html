@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDX Lite</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0 auto; padding: 16px; max-width: 1000px; }
+  #wrap { max-height: 420px; overflow: auto; margin-top: 8px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid #8884; white-space: nowrap; }
+  th { position: sticky; top: 0; background: Canvas; cursor: pointer; user-select: none; }
+  th:first-child, td:first-child { text-align: left; }
+  tr.row { cursor: pointer; }
+  tr.row:hover { background: #8881; }
+  .up { color: #16a34a; } .down { color: #dc2626; }
+  #chart { height: 380px; margin-top: 16px; }
+  input { padding: 6px 10px; width: 220px; }
+  small { opacity: .7; }
+  #macro { margin: 12px 0 16px; }
+  #macro-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .card { border: 1px solid #8884; border-radius: 8px; padding: 8px 10px; }
+  .card .lbl { font-size: 12px; opacity: .7; }
+  .card .val { font-size: 20px; font-weight: 600; }
+  .card .sub { font-size: 12px; min-height: 16px; }
+  .card.na .val { opacity: .4; }
+</style>
+</head>
+<body>
+<h1>IDX Lite</h1>
+<small id="updated">Memuat…</small><br>
+<section id="macro"><div id="macro-cards"></div><small id="macro-meta"></small></section>
+<input id="q" placeholder="Cari kode, mis. BBCA"> <small id="count"></small>
+<div id="wrap">
+<table>
+  <thead><tr id="head"></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+<h2 id="title"></h2>
+<div id="chart"></div>
+<p><small>Data tertunda dari Yahoo Finance. Hanya informasi, bukan saran investasi.</small></p>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+const fmt = (n, d = 0) => n == null ? "-" : n.toLocaleString("id-ID", { maximumFractionDigits: d });
+const cols = [
+  ["symbol", "Kode"], ["price", "Harga"], ["change_pct", "Chg %"], ["volume", "Volume"],
+  ["value", "Nilai"], ["sma20", "SMA20"], ["sma50", "SMA50"], ["rsi14", "RSI14"],
+];
+let stocks = [], sortKey = "value", sortDir = -1, chart, series;
+
+async function showChart(sym) {
+  document.getElementById("title").textContent = sym;
+  const rows = await (await fetch(`data/prices/${sym}.json`)).json();
+  if (!chart) {
+    chart = LightweightCharts.createChart(document.getElementById("chart"), {
+      autoSize: true,
+      layout: { background: { color: "transparent" }, textColor: "#888" },
+      grid: { vertLines: { color: "#8882" }, horzLines: { color: "#8882" } },
+    });
+    series = chart.addCandlestickSeries();
+  }
+  series.setData(rows.map(r => ({ time: r[0], open: r[1], high: r[2], low: r[3], close: r[4] })));
+  chart.timeScale().fitContent();
+}
+
+function render() {
+  const q = document.getElementById("q").value.trim().toUpperCase();
+  const list = stocks
+    .filter(s => !q || s.symbol.includes(q))
+    .sort((a, b) => {
+      const x = a[sortKey], y = b[sortKey];
+      if (x == null) return 1;
+      if (y == null) return -1;
+      return (x > y ? 1 : x < y ? -1 : 0) * sortDir;
+    });
+  document.getElementById("count").textContent = `${list.length} saham`;
+  document.getElementById("rows").innerHTML = list.map(x => {
+    const cls = x.change_pct >= 0 ? "up" : "down";
+    return `<tr class="row" data-s="${x.symbol}"><td>${x.symbol}</td><td>${fmt(x.price)}</td>
+      <td class="${cls}">${fmt(x.change_pct, 2)}%</td><td>${fmt(x.volume)}</td><td>${fmt(x.value)}</td>
+      <td>${fmt(x.sma20)}</td><td>${fmt(x.sma50)}</td><td>${fmt(x.rsi14, 1)}</td></tr>`;
+  }).join("");
+}
+
+const macroDefs = [
+  { key: "usdidr", label: "USD/IDR", d: 0, unit: "" },
+  { key: "ihsg", label: "IHSG", d: 2, unit: "" },
+  { key: "crude_oil", label: "WTI (USD/bbl)", d: 2, unit: "" },
+  { key: "cds_5y", label: "CDS 5Y", d: 1, unit: " bps" },
+  { key: "bond_1y", label: "Yield 1Y", d: 2, unit: "%" },
+  { key: "bond_5y", label: "Yield 5Y", d: 2, unit: "%" },
+];
+const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+async function loadMacro() {
+  const box = document.getElementById("macro-cards");
+  const meta = document.getElementById("macro-meta");
+  try {
+    const m = await (await fetch("data/data.json")).json();
+    let manual = {};
+    try { manual = await (await fetch("data/manual.json")).json(); } catch (e) {}
+    const st = m.last_run_status || {};
+    let bad = 0;
+    box.innerHTML = macroDefs.map(def => {
+      let x = m[def.key], note = "";
+      if (!x || x.value == null) {
+        const mm = manual[def.key];
+        if (mm && mm.value != null) {
+          x = mm;
+          note = "manual" + (mm.date ? " · " + esc(mm.date) : "");
+        } else {
+          x = null;
+          bad++;
+          note = st[def.key] && st[def.key] !== "ok" ? "gagal diambil" : "belum ada data";
+        }
+      }
+      if (!x) {
+        return `<div class="card na"><div class="lbl">${def.label}</div><div class="val">n/a</div><div class="sub">${note}</div></div>`;
+      }
+      let sub = note;
+      if (x.change_pct != null) {
+        const cls = x.change_pct >= 0 ? "up" : "down";
+        sub = `<span class="${cls}">${x.change_pct >= 0 ? "+" : ""}${fmt(x.change_pct, 2)}%</span>`;
+      } else if (!note && x.date) {
+        sub = esc(x.date);
+      }
+      return `<div class="card"><div class="lbl">${def.label}</div>
+        <div class="val">${fmt(x.value, def.d)}${def.unit}</div><div class="sub">${sub}</div></div>`;
+    }).join("");
+    meta.textContent = "Makro diperbarui: " + new Date(m.last_updated).toLocaleString("id-ID") +
+      (bad ? ` · ${bad} indikator tidak tersedia` : "");
+  } catch (e) {
+    box.innerHTML = "";
+    meta.textContent = "Data makro belum tersedia.";
+  }
+}
+
+async function main() {
+  loadMacro();
+  const head = document.getElementById("head");
+  cols.forEach(([k, label]) => {
+    const th = document.createElement("th");
+    th.textContent = label;
+    th.onclick = () => { sortDir = sortKey === k ? -sortDir : -1; sortKey = k; render(); };
+    head.appendChild(th);
+  });
+  document.getElementById("rows").onclick = e => {
+    const tr = e.target.closest("tr");
+    if (tr) showChart(tr.dataset.s);
+  };
+  document.getElementById("q").oninput = render;
+
+  const s = await (await fetch("data/summary.json")).json();
+  stocks = s.stocks;
+  document.getElementById("updated").textContent = "Diperbarui: " + new Date(s.updated).toLocaleString("id-ID");
+  render();
+  if (stocks.length) showChart(stocks.slice().sort((a, b) => (b.value || 0) - (a.value || 0))[0].symbol);
+}
+main();
+</script>
+</body>
+</html>
