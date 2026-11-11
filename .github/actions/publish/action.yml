@@ -1,0 +1,54 @@
+name: Terbitkan ke gh-pages
+description: >
+  Ganti sebagian isi branch gh-pages dengan hasil job ini, bagian lain dibiarkan. Branch tetap satu
+  commit. Kalau job lain menerbitkan di saat yang sama, langkah ini mengulang dari isi terbaru.
+inputs:
+  paths:
+    description: Path relatif terhadap docs/ yang dimiliki job ini (satu per baris); "*" = semua file docs/ tanpa menghapus apa pun
+    required: true
+  message:
+    description: Pesan commit
+    default: deploy
+  token:
+    description: Token untuk push
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PATHS: ${{ inputs.paths }}
+        MSG: ${{ inputs.message }}
+        TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        URL="https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+        SRC="$GITHUB_WORKSPACE/docs"
+        for attempt in 1 2 3 4 5 6; do
+          PUB="$(mktemp -d)" && cd "$PUB"
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BASE=""
+          if git fetch -q --depth 1 "$URL" gh-pages 2>/dev/null; then
+            BASE="$(git rev-parse FETCH_HEAD)"
+            git read-tree FETCH_HEAD && git checkout-index -a -f
+          fi
+          while IFS= read -r p; do
+            p="$(echo "$p" | xargs)"; [ -z "$p" ] && continue
+            if [ "$p" = "*" ]; then cp -r "$SRC/." "$PUB/"; continue; fi
+            [ -e "$SRC/$p" ] || { echo "tidak ada $p di hasil job; versi lama dipertahankan"; continue; }
+            rm -rf "$PUB/$p"; mkdir -p "$(dirname "$PUB/$p")"
+            cp -r "$SRC/$p" "$PUB/$p"
+          done <<< "$PATHS"
+          rm -f "$PUB/.git/index"
+          git add -A
+          git commit -q -m "$MSG $(date -u +%FT%TZ)"
+          if [ -n "$BASE" ]; then
+            git push -q --force-with-lease="gh-pages:$BASE" "$URL" HEAD:gh-pages && { echo "terbit (percobaan $attempt)"; exit 0; }
+          else
+            git push -q -f "$URL" HEAD:gh-pages && { echo "terbit pertama kali"; exit 0; }
+          fi
+          echo "gh-pages berubah saat menerbitkan; ulangi"; sleep $((RANDOM % 10 + 5))
+        done
+        echo "gagal menerbitkan setelah 6 percobaan"; exit 1

@@ -1,0 +1,40 @@
+name: brief
+# Brief per saham (idx stocks brief), 100 saham per run bergilir. 17:15 WIB.
+on:
+  schedule:
+    - cron: "15 10 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      max:
+        description: Jumlah saham
+        default: "100"
+permissions:
+  contents: write
+concurrency:
+  group: data-brief
+  cancel-in-progress: false
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          idx: "true"
+          cache-key: idx-brief
+      - uses: ./.github/actions/restore
+        with:
+          paths: |
+            data/summary.json
+            data/brief
+            data/brief_index.json
+      - name: Database kepemilikan (untuk bagian pemegang saham)
+        run: idx ownership sync || echo "sync gagal; brief tanpa data kepemilikan"
+      - run: timeout 40m python scripts/fetch_brief.py --max "${{ inputs.max || '100' }}" || echo "berhenti lebih awal; yang sudah jadi tetap diterbitkan"
+      - uses: ./.github/actions/publish
+        with:
+          paths: |
+            data/brief
+            data/brief_index.json
+          message: brief

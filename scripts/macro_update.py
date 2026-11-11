@@ -71,6 +71,27 @@ def fetch_usdidr():
 # ---------------------------------------------------------------------------
 # 2 & 3. IHSG dan Crude Oil (WTI) - Yahoo Finance chart API (unofficial, gratis)
 # ---------------------------------------------------------------------------
+def previous_session_close(result):
+    """Penutupan sesi SEBELUM sesi harga terakhir, dari candle harian.
+
+    Jangan pakai meta.chartPreviousClose: dengan range=5d itu penutupan sebelum awal
+    jendela 5 hari, bukan kemarin, sehingga persentase perubahan jadi salah.
+    """
+    meta = result["meta"]
+    off = meta.get("gmtoffset") or 0
+    day = lambda t: datetime.fromtimestamp(t + off, tz=timezone.utc).date()
+    ts = result.get("timestamp") or []
+    closes = ((result.get("indicators") or {}).get("quote") or [{}])[0].get("close") or []
+    last_t = meta.get("regularMarketTime") or (ts[-1] if ts else None)
+    if last_t is None:
+        return None
+    last_day = day(last_t)
+    for t, c in reversed(list(zip(ts, closes))):
+        if c is not None and day(t) < last_day:
+            return c
+    return None
+
+
 def fetch_yahoo_quote(symbol):
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
     r = safe_get(url, params={"interval": "1d", "range": "5d"})
@@ -78,7 +99,7 @@ def fetch_yahoo_quote(symbol):
     result = data["chart"]["result"][0]
     meta = result["meta"]
     price = meta.get("regularMarketPrice")
-    prev_close = meta.get("previousClose") or meta.get("chartPreviousClose")
+    prev_close = previous_session_close(result) or meta.get("previousClose")
     change_pct = None
     if price is not None and prev_close:
         change_pct = round((price - prev_close) / prev_close * 100, 2)

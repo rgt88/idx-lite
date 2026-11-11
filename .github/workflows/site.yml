@@ -1,135 +1,21 @@
-name: build-and-deploy
-
+name: situs
+# Menerbitkan kode tampilan (HTML/JS/CSS, hsc.json, manual.json). Data tidak disentuh.
 on:
   push:
     branches: [main]
-  schedule:
-    - cron: "0 1,3,5,7 * * 1-5"    # makro saja: 08, 10, 12, 14 WIB
-    - cron: "30 9 * * 1-5"         # makro + harga + fundamental + kepemilikan + brief: 16:30 WIB
-    - cron: "30 12 * * 1-5"        # makro + harga (ulang) + foreign flow + broker summary: 19:30 WIB
   workflow_dispatch:
-    inputs:
-      flow:
-        description: "Ambil foreign flow & broker summary (hasil lengkap hanya setelah 19:00 WIB)"
-        type: boolean
-        default: true
-
 permissions:
   contents: write
-
 concurrency:
-  group: site
-  cancel-in-progress: false
-
+  group: situs
+  cancel-in-progress: true
 jobs:
-  build:
+  situs:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: ./.github/actions/publish
         with:
-          python-version: "3.12"
-          cache: pip
-
-      - run: pip install -r requirements.txt
-
-      - name: Ambil data dari situs sebelumnya
-        run: |
-          if git clone --depth 1 --branch gh-pages \
-               "https://github.com/${{ github.repository }}.git" /tmp/site 2>/dev/null; then
-            mkdir -p docs/data
-            rsync -a --ignore-existing /tmp/site/data/ docs/data/
-          else
-            echo "Branch gh-pages belum ada, mulai dari nol"
-          fi
-
-      - name: Update makro
-        run: python scripts/macro_update.py
-
-      - name: Update harga saham
-        continue-on-error: true
-        env:
-          SCHED: ${{ github.event.schedule }}
-          EVENT: ${{ github.event_name }}
-        run: |
-          # 16:30 dan diulang 19:30, supaya jadwal sore yang terlambat/terlewat GitHub tetap tertutup
-          if [ "$EVENT" = "workflow_dispatch" ] || [ "$SCHED" = "30 9 * * 1-5" ] || [ "$SCHED" = "30 12 * * 1-5" ] || [ ! -f docs/data/summary.json ]; then
-            python scripts/fetch_prices.py
-          else
-            echo "Lewati update harga pada run ini"
-          fi
-
-      - name: Update fundamental (bertahap)
-        continue-on-error: true
-        env:
-          SCHED: ${{ github.event.schedule }}
-          EVENT: ${{ github.event_name }}
-        run: |
-          if [ "$EVENT" = "workflow_dispatch" ] || [ "$SCHED" = "30 9 * * 1-5" ]; then
-            python scripts/fetch_fundamentals.py --max 100
-          else
-            echo "Lewati update fundamental pada run ini"
-          fi
-
-      - name: Cache respons dan database idx
-        uses: actions/cache@v4
-        with:
-          path: .idx-cache
-          key: idx-cache-${{ github.run_id }}
-          restore-keys: idx-cache-
-
-      - name: Pasang CLI idx
-        continue-on-error: true
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/fzn0x/idx/main/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Tentukan langkah idx
-        id: plan
-        env:
-          SCHED: ${{ github.event.schedule }}
-          EVENT: ${{ github.event_name }}
-          FLOW_INPUT: ${{ inputs.flow }}
-        run: |
-          daily=false; flow=false
-          if [ "$SCHED" = "30 9 * * 1-5" ] || [ "$EVENT" = "workflow_dispatch" ]; then daily=true; fi
-          if [ "$SCHED" = "30 12 * * 1-5" ] || { [ "$EVENT" = "workflow_dispatch" ] && [ "$FLOW_INPUT" = "true" ]; }; then flow=true; fi
-          echo "daily=$daily" >> "$GITHUB_OUTPUT"
-          echo "flow=$flow" >> "$GITHUB_OUTPUT"
-
-      - name: Update kepemilikan KSEI (> 1%)
-        if: steps.plan.outputs.daily == 'true'
-        continue-on-error: true
-        env:
-          IDX_CACHE_DIR: ${{ github.workspace }}/.idx-cache
-          IDX_OWNERSHIP_DB: ${{ github.workspace }}/.idx-cache/ownership.sqlite
-        run: python scripts/fetch_ownership.py
-
-      - name: Update brief (bertahap)
-        if: steps.plan.outputs.daily == 'true'
-        continue-on-error: true
-        env:
-          IDX_CACHE_DIR: ${{ github.workspace }}/.idx-cache
-          IDX_OWNERSHIP_DB: ${{ github.workspace }}/.idx-cache/ownership.sqlite
-        run: python scripts/fetch_brief.py --max 100
-
-      - name: Update foreign flow & broker summary
-        if: steps.plan.outputs.flow == 'true'
-        continue-on-error: true
-        env:
-          IDX_CACHE_DIR: ${{ github.workspace }}/.idx-cache
-        run: |
-          idx version
-          python scripts/fetch_flow.py
-
-      - name: Deploy ke gh-pages
-        run: |
-          cd docs
-          git init -q -b gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -q -m "deploy $(date -u +%FT%TZ)"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
+          paths: "*"
+          message: situs

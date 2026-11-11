@@ -30,7 +30,10 @@ ap.add_argument("--broker-top", type=int, default=100, help="broker summary untu
 ap.add_argument("--foreign-top", type=int, default=40, help="riwayat foreign untuk N saham teraktif")
 ap.add_argument("--foreign-days", type=int, default=20, help="jumlah sesi riwayat foreign (maks 60)")
 ap.add_argument("--keep-days", type=int, default=120, help="sesi yang disimpan di foreign_hist.json")
+ap.add_argument("--budget", type=float, default=35, help="batas waktu total (menit); sisa pekerjaan dilewati")
+ap.add_argument("--max-fail", type=int, default=5, help="gagal berturut-turut sebelum sisa satu bagian dilewati")
 args = ap.parse_args()
+DEADLINE = time.time() + args.budget * 60
 
 for sub in ("broker", "foreign"):
     (OUT / sub).mkdir(parents=True, exist_ok=True)
@@ -38,9 +41,12 @@ for sub in ("broker", "foreign"):
 status = {}
 
 
-def run(cmd, timeout=1800):
-    """Jalankan `idx -o json ...`; kembalikan (amplop, pesan_error)."""
+def run(cmd, timeout=300):
+    """Jalankan `idx -o json ...`; kembalikan (amplop, pesan_error). Tidak melewati batas waktu total."""
     t0 = time.time()
+    timeout = min(timeout, DEADLINE - t0)
+    if timeout < 5:
+        return None, "dilewati: batas waktu total habis"
     try:
         p = subprocess.run(
             [IDX, "-o", "json", *cmd], capture_output=True, text=True, timeout=timeout,
@@ -50,6 +56,7 @@ def run(cmd, timeout=1800):
         sys.exit(f"CLI `{IDX}` tidak ditemukan. Pasang dulu: "
                  "curl -fsSL https://raw.githubusercontent.com/fzn0x/idx/main/install.sh | sh")
     except subprocess.TimeoutExpired:
+        print(f"timeout idx {' '.join(cmd)} setelah {timeout:.0f} dtk; dilewati")
         return None, "timeout"
     env = None
     try:
@@ -110,16 +117,35 @@ if not symbols:
     except Exception:
         symbols = []
 
+class Breaker:
+    """Hentikan satu bagian kalau sumbernya jelas sedang bermasalah (gagal berturut-turut)."""
+    def __init__(self, name):
+        self.name, self.fails, self.tripped = name, 0, None
+    def record(self, ok, err=None):
+        self.fails = 0 if ok else self.fails + 1
+        if self.fails >= args.max_fail and not self.tripped:
+            self.tripped = err or "gagal berturut-turut"
+            print(f"{self.name}: {self.fails} kali gagal berturut-turut ({self.tripped}); sisa dilewati")
+    def note(self, text):
+        return text + (f", sisa dilewati: {self.tripped}" if self.tripped else "")
+
+
 # 3. Broker summary per saham (sesi terakhir), 20 saham per panggilan
 ok = 0
 todo = symbols[: args.broker_top]
+br = Breaker("broker")
 for i in range(0, len(todo), 20):
+    if br.tripped or time.time() > DEADLINE:
+        break
     batch = todo[i:i + 20]
-    env, err = run(["broker", ",".join(batch)])
+    env, err = run(["broker", ",".join(batch)], timeout=240)
     summaries = env["data"] if env else []
     if not env:  # satu saham bermasalah bisa menggagalkan satu batch: ulangi satu per satu
         for sym in batch:
-            e1, _ = run(["broker", sym])
+            if br.tripped:
+                break
+            e1, err1 = run(["broker", sym], timeout=60)
+            br.record(bool(e1), err1)
             if e1:
                 env = env or e1
                 summaries += e1["data"] or []
@@ -129,16 +155,20 @@ for i in range(0, len(todo), 20):
             "fetched_at": env.get("fetched_at"), "data": summ,
         })
         ok += 1
-status["broker"] = f"{ok}/{len(todo)}"
+status["broker"] = br.note(f"{ok}/{len(todo)}")
 
 # 4. Riwayat foreign per saham (rupiah, IPOT)
 ok = 0
+fr = Breaker("foreign")
 for sym in symbols[: args.foreign_top]:
-    env, err = run(["stocks", "foreign", sym, "--source", "ipot", "--days", str(args.foreign_days)], timeout=900)
+    if fr.tripped or time.time() > DEADLINE:
+        break
+    env, err = run(["stocks", "foreign", sym, "--source", "ipot", "--days", str(args.foreign_days)], timeout=120)
+    fr.record(bool(env), err)
     if env:
         dump(OUT / "foreign" / f"{sym}.json", env)
         ok += 1
-status["foreign"] = f"{ok}/{min(len(symbols), args.foreign_top)}"
+status["foreign"] = fr.note(f"{ok}/{min(len(symbols), args.foreign_top)}")
 
 # 5. Arsip harian foreign net (dari market foreign) supaya riwayat bertambah tiap hari
 hist_path = OUT / "foreign_hist.json"

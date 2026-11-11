@@ -1,0 +1,29 @@
+name: harga
+# Harga harian semua saham. 16:30 WIB, diulang 19:30 WIB kalau jadwal sore terlambat/terlewat.
+on:
+  schedule:
+    - cron: "30 9 * * 1-5"
+    - cron: "30 12 * * 1-5"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: data-harga
+  cancel-in-progress: false
+jobs:
+  harga:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/restore
+        with:
+          paths: data/prices
+      - run: python scripts/fetch_prices.py
+      - uses: ./.github/actions/publish
+        with:
+          paths: |
+            data/summary.json
+            data/prices
+          message: harga

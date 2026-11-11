@@ -33,7 +33,7 @@ Situs: https://rgt88.github.io/idx-lite/ (terminal) · https://rgt88.github.io/i
 | `flow/` | `scripts/fetch_flow.py` | 19.30 | Indo Premier lewat CLI [idx](https://github.com/fzn0x/idx) |
 | `hsc.json` | `scripts/hsc_update.py` | manual, setiap ada pengumuman BEI | Pengumuman BEI |
 
-Data hasil olahan tidak masuk riwayat git `main`; workflow `site.yml` menerbitkannya ke branch `gh-pages` sebagai satu commit.
+Data hasil olahan tidak masuk riwayat git `main`. Setiap sumber punya workflow sendiri (`makro`, `harga`, `fundamental`, `kepemilikan`, `brief`, `foreign-broker`) yang menerbitkan bagiannya ke branch `gh-pages`; satu sumber error tidak menghambat yang lain.
 
 Penjelasan lengkap, termasuk plan B **mode laptop** (`scripts/update_lokal.sh`) dan cara memperbarui daftar HSC: [ARCHITECTURE.md](ARCHITECTURE.md).
 

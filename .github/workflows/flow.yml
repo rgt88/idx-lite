@@ -1,0 +1,34 @@
+name: foreign-broker
+# Foreign flow, broker summary, bandarmology (Indo Premier / idx.co.id). 19:30 WIB.
+# Matikan sementara tanpa mengubah kode: gh variable set SKIP_FLOW --body 1
+# Nyalakan lagi:                         gh variable delete SKIP_FLOW
+on:
+  schedule:
+    - cron: "30 12 * * 1-5"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: data-flow
+  cancel-in-progress: false
+jobs:
+  flow:
+    if: vars.SKIP_FLOW != '1' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          idx: "true"
+          cache-key: idx-flow
+      - uses: ./.github/actions/restore
+        with:
+          paths: |
+            data/flow
+            data/summary.json
+      - run: timeout 40m python scripts/fetch_flow.py || echo "sebagian gagal atau berhenti; yang berhasil tetap diterbitkan"
+      - uses: ./.github/actions/publish
+        with:
+          paths: data/flow
+          message: foreign-broker

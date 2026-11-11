@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Mode laptop (plan B): ambil semua data dari WSL lalu terbitkan ke branch gh-pages,
-# tanpa GitHub Actions. Hasilnya sama dengan workflow site.yml.
+# tanpa GitHub Actions. Hasilnya sama dengan gabungan workflow di .github/workflows/.
 #
 #   ./scripts/update_lokal.sh            # auto: makro selalu; harga+fundamental sekali sehari
 #                                        #       setelah 16:15 WIB; foreign+broker setelah 19:00 WIB

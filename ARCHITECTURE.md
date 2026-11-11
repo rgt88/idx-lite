@@ -22,7 +22,7 @@ flowchart LR
   end
 
   subgraph Pekerja["Pekerja terjadwal"]
-    GA[GitHub Actions<br/>site.yml]
+    GA[GitHub Actions<br/>satu workflow per sumber]
     LP[Mode laptop<br/>update_lokal.sh]
   end
 
@@ -70,30 +70,39 @@ flowchart LR
 | Pembantu | `scripts/idxcli.py` | Menjalankan `idx -o json` dan menyimpan JSON, dipakai skrip kepemilikan dan brief |
 | HSC | `scripts/hsc_update.py` | Memperbarui daftar Kepemilikan Saham Terkonsentrasi Tinggi → `hsc.json` |
 | Isian manual | `docs/data/manual.json` | Cadangan CDS/yield kalau scraper gagal |
-| Workflow | `.github/workflows/site.yml` | Jadwal, urutan langkah, terbit ke `gh-pages` |
+| Workflow | `.github/workflows/*.yml` | Satu workflow per sumber data, plus `site.yml` untuk kode tampilan |
+| Langkah bersama | `.github/actions/{setup,restore,publish}` | Menyiapkan Python/idx, mengambil data tayang, menerbitkan sebagian `gh-pages` |
 | Mode laptop | `scripts/update_lokal.sh` | Pengganti workflow, dijalankan dari WSL |
 
-## Jadwal (WIB, Senin–Jumat)
+## Workflow dan jadwal (WIB, Senin–Jumat)
 
-| Waktu | Langkah | Alasan |
-| --- | --- | --- |
-| 08:00, 10:00, 12:00, 14:00 | makro | Murah, berubah sepanjang hari |
-| 16:30 | makro, harga, fundamental, kepemilikan, brief | Bursa tutup 16:15; candle harian sudah final. Kepemilikan hanya ditulis ulang saat register bulanan baru terbit |
-| 19:30 | makro, harga (ulang), foreign & broker | IPOT baru menerbitkan broker summary setelah tutup, dan ranking broker serta statistik pasar baru bisa diberi tanggal setelah 19:00 |
-| setiap push ke `main` | makro, terbit ulang | Perubahan tampilan langsung tayang |
-| manual (`gh workflow run build-and-deploy`) | semua langkah | Mengisi data kapan saja |
+Setiap sumber data punya workflow sendiri. Kalau satu sumber error atau lambat, hanya workflow itu yang gagal; yang lain tetap terbit, dan yang gagal bisa dijalankan ulang sendiri tanpa mengulang semuanya.
 
-Jadwal GitHub bisa terlambat beberapa menit sampai puluhan menit. Jadwal repo publik yang tidak ada aktivitas selama 60 hari dinonaktifkan GitHub; aktifkan lagi di tab Actions.
+| Workflow | File | Jadwal | Isi yang diterbitkan |
+| --- | --- | --- | --- |
+| situs | `situs` → `site.yml` | setiap push ke `main` | HTML/JS/CSS, `hsc.json`, `manual.json` |
+| makro | `makro.yml` | 08, 10, 12, 14, 16, 19 | `data.json` |
+| harga | `harga.yml` | 16:30, diulang 19:30 | `summary.json`, `prices/` |
+| fundamental | `fundamental.yml` | 16:45 | `fundamentals.json`, `fundamentals/` |
+| kepemilikan | `kepemilikan.yml` | 17:00 | `ownership/` |
+| brief | `brief.yml` | 17:15 | `brief/`, `brief_index.json` |
+| foreign-broker | `flow.yml` | 19:30 | `flow/` |
 
-## Alur satu run
+Menjalankan ulang satu bagian: `gh workflow run harga.yml` (atau tombol *Run workflow* di tab Actions). Menjalankan semuanya: `./scripts/jalankan_semua.sh`.
 
-1. Checkout `main` (kode, `symbols.txt`, `manual.json`, `hsc.json`).
-2. Clone `gh-pages` lalu salin `data/` ke `docs/data/` **tanpa menimpa** file dari `main`. Dengan begitu data lama ikut terbawa, dan file yang diedit manusia selalu menang.
-3. Jalankan skrip sesuai jadwal. Skrip menimpa file yang berhasil diambil saja.
-4. `docs/` di-commit sebagai satu commit baru dan di-force-push ke `gh-pages`. Riwayat `gh-pages` selalu satu commit, jadi repo tidak membengkak.
-5. GitHub Pages menerbitkan ulang `gh-pages` dalam 1–2 menit.
+Foreign & broker bisa dimatikan sementara tanpa mengubah kode: `gh variable set SKIP_FLOW --body 1`, dan dinyalakan lagi dengan `gh variable delete SKIP_FLOW`. Run manual tetap jalan walau sakelar ini aktif.
 
-Respons CLI `idx` disimpan di cache Actions (`.idx-cache`), sehingga riwayat foreign tidak diunduh ulang dari nol setiap hari.
+Jadwal GitHub bisa terlambat beberapa menit sampai sekitar satu jam dan sesekali dilewati; karena itu harga diambil dua kali. Jadwal repo publik yang tidak ada aktivitas sekitar 60 hari bisa dinonaktifkan GitHub; aktifkan lagi dengan `gh workflow enable <nama>`.
+
+## Alur satu workflow
+
+Semua workflow data memakai tiga langkah bersama di `.github/actions/`:
+
+1. **setup**: Python dan `requirements.txt`; untuk kepemilikan, brief dan foreign-broker juga CLI `idx` beserta cache respons dan database kepemilikannya.
+2. **restore**: menyalin bagian `gh-pages` yang dibutuhkan ke `docs/` (misalnya data lama yang dilanjutkan), tanpa menimpa file dari `main`.
+3. **publish**: mengganti **hanya** path milik workflow itu di `gh-pages`, bagian lain dibiarkan. Branch tetap satu commit. Kalau dua workflow menerbitkan bersamaan, push memakai `--force-with-lease`; yang kalah cepat mengulang dari isi terbaru (sampai enam kali), jadi tidak ada hasil yang tertimpa.
+
+Kalau skrip gagal total, publish tidak dijalankan dan situs tetap menampilkan data lama. Skrip yang bisa lama (fundamental, brief, foreign-broker) dibungkus `timeout`, dan `fetch_flow.py` punya batas waktu total (`--budget`, 35 menit) serta pemutus: setelah 5 kegagalan berturut-turut di satu bagian (misalnya Indo Premier sedang error), sisa bagian itu dilewati. Yang sudah berhasil tetap diterbitkan.
 
 ## Data di `docs/data/`
 
@@ -173,7 +182,7 @@ schtasks /Create /TN "idx-lite update" /SC HOURLY /ST 08:05 /TR "wsl.exe -d Ubun
 
 Mode `auto` menjalankan makro setiap kali, harga dan fundamental sekali sehari setelah 16:15 WIB, serta foreign dan broker sekali sehari setelah 19:00 WIB. Penanda harian disimpan di `~/.local/state/idx-lite/`. Laptop harus menyala; kalau sempat tidur, langkah yang terlewat dijalankan pada jam berikutnya.
 
-Kalau mode laptop menjadi jalur utama, matikan jadwal Actions dengan menghapus baris `schedule` di `site.yml`, supaya dua pekerja tidak saling menimpa. Keduanya selalu mulai dari isi `gh-pages` terbaru, jadi menjalankan keduanya sesekali tetap aman.
+Kalau mode laptop menjadi jalur utama, matikan workflow data dengan `gh workflow disable <nama>`, supaya dua pekerja tidak saling menimpa. Keduanya selalu mulai dari isi `gh-pages` terbaru, jadi menjalankan keduanya sesekali tetap aman.
 
 ## HSC (Kepemilikan Saham Terkonsentrasi Tinggi)
 

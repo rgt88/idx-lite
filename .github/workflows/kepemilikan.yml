@@ -1,0 +1,36 @@
+name: kepemilikan
+# Pemegang saham > 1% (register KSEI bulanan) lewat mirror GitHub proyek idx. 17:00 WIB.
+on:
+  schedule:
+    - cron: "0 10 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Tulis ulang walau register belum berganti
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: data-kepemilikan
+  cancel-in-progress: false
+jobs:
+  kepemilikan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          idx: "true"
+          cache-key: idx-kepemilikan
+      - uses: ./.github/actions/restore
+        with:
+          paths: |
+            data/ownership
+            data/summary.json
+      - run: python scripts/fetch_ownership.py ${{ inputs.force && '--force' || '' }}
+      - uses: ./.github/actions/publish
+        with:
+          paths: data/ownership
+          message: kepemilikan

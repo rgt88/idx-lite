@@ -1,0 +1,33 @@
+name: Siapkan Python (dan CLI idx)
+description: Python + requirements.txt; opsional CLI idx beserta cache respons dan database kepemilikannya.
+inputs:
+  idx:
+    description: Pasang CLI idx dan cache-nya
+    default: "false"
+  cache-key:
+    description: Nama cache idx untuk job ini
+    default: idx
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: pip
+    - shell: bash
+      run: pip install -q -r requirements.txt
+    - if: inputs.idx == 'true'
+      uses: actions/cache@v4
+      with:
+        path: .idx-cache
+        key: ${{ inputs.cache-key }}-${{ github.run_id }}
+        restore-keys: |
+          ${{ inputs.cache-key }}-
+          idx-
+    - if: inputs.idx == 'true'
+      shell: bash
+      run: |
+        curl -fsSL https://raw.githubusercontent.com/fzn0x/idx/main/install.sh | sh
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        echo "IDX_CACHE_DIR=$GITHUB_WORKSPACE/.idx-cache" >> "$GITHUB_ENV"
+        echo "IDX_OWNERSHIP_DB=$GITHUB_WORKSPACE/.idx-cache/ownership.sqlite" >> "$GITHUB_ENV"

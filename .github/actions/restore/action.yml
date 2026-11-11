@@ -1,0 +1,27 @@
+name: Ambil data yang sedang tayang
+description: Salin sebagian isi branch gh-pages ke docs/ supaya skrip melanjutkan data lama. File yang dilacak git (main) tidak ditimpa.
+inputs:
+  paths:
+    description: Daftar path relatif terhadap docs/ (satu per baris), mis. data/summary.json
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PATHS: ${{ inputs.paths }}
+      run: |
+        set -euo pipefail
+        LIVE="$(mktemp -d)/live"
+        if ! git clone -q --depth 1 --branch gh-pages "https://github.com/${GITHUB_REPOSITORY}.git" "$LIVE" 2>/dev/null; then
+          echo "gh-pages belum ada; mulai dari nol"; exit 0
+        fi
+        while IFS= read -r p; do
+          p="$(echo "$p" | xargs)"; [ -z "$p" ] && continue
+          src="$LIVE/$p"; dst="docs/$p"
+          [ -e "$src" ] || { echo "lewati $p (belum ada di situs)"; continue; }
+          mkdir -p "$(dirname "$dst")"
+          if [ -d "$src" ]; then mkdir -p "$dst"; cp -rn "$src/." "$dst/" 2>/dev/null || true
+          elif [ ! -e "$dst" ]; then cp "$src" "$dst"; fi
+          echo "ambil $p"
+        done <<< "$PATHS"

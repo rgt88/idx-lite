@@ -1,0 +1,35 @@
+name: fundamental
+# Valuasi dan laporan keuangan, 100 saham per run bergilir. 16:45 WIB.
+on:
+  schedule:
+    - cron: "45 9 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      max:
+        description: Jumlah saham
+        default: "100"
+permissions:
+  contents: write
+concurrency:
+  group: data-fundamental
+  cancel-in-progress: false
+jobs:
+  fundamental:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/restore
+        with:
+          paths: |
+            data/summary.json
+            data/fundamentals.json
+            data/fundamentals
+      - run: timeout 40m python scripts/fetch_fundamentals.py --max "${{ inputs.max || '100' }}" || echo "berhenti lebih awal; yang sudah jadi tetap diterbitkan"
+      - uses: ./.github/actions/publish
+        with:
+          paths: |
+            data/fundamentals.json
+            data/fundamentals
+          message: fundamental
