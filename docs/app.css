@@ -1,0 +1,99 @@
+/* Tampilan utama IDX Lite. Komponen dasar (tabel, kartu, warna) ada di terminal.css. */
+
+.app { font-size: 15px; }
+.appbar { position: sticky; top: 0; z-index: 20; background: var(--panel); border-bottom: 1px solid var(--line); }
+.appbar-in { max-width: 1100px; margin: 0 auto; padding: 10px 16px 6px; display: flex; gap: 14px; align-items: center; }
+.app .brand { font-size: 20px; }
+
+#search { position: relative; flex: 1; display: flex; align-items: center; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 999px; padding: 0 14px; }
+#search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+#search .ico { color: var(--muted); margin-right: 8px; font-size: 18px; line-height: 1; }
+#q { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--fg); font-size: 15px; padding: 9px 0; }
+#q::-webkit-search-cancel-button { display: none; }
+#qlist { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 30; list-style: none; margin: 0; padding: 4px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgb(0 0 0 / .16);
+  max-height: 380px; overflow: auto; }
+#qlist li { display: flex; gap: 8px; align-items: center; padding: 9px 10px; border-radius: 8px; cursor: pointer; }
+#qlist li b { font-family: var(--mono); }
+#qlist li > span:last-child { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#qlist li[aria-selected="true"], #qlist li:hover { background: var(--chip); }
+.term { font-size: 13px; color: var(--muted); text-decoration: none; white-space: nowrap; }
+.term:hover { color: var(--fg); }
+
+.mainnav { max-width: 1100px; margin: 0 auto; padding: 0 10px; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.mainnav::-webkit-scrollbar { display: none; }
+.mainnav a { padding: 10px 12px; color: var(--muted); text-decoration: none; font-weight: 500; white-space: nowrap;
+  border-bottom: 2px solid transparent; }
+.mainnav a:hover { color: var(--fg); }
+.mainnav a[aria-current="page"] { color: var(--fg); border-bottom-color: var(--accent); }
+
+.app main { padding-top: 18px; gap: 14px; }
+.page-head h1 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+.page-head p { margin: 4px 0 0; max-width: 70ch; }
+
+.stock-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 6px 16px; }
+.sh-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.sh-top h1 { margin: 0; font: 700 26px var(--mono); }
+.sh-top .nm { color: var(--muted); }
+.sh-px { display: flex; align-items: baseline; gap: 10px; }
+.sh-px .px { font: 700 28px var(--mono); }
+.sh-px .up, .sh-px .down { font-weight: 600; }
+
+.tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a { padding: 10px 14px; text-decoration: none; color: var(--muted); font-weight: 500; white-space: nowrap;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs a:hover { color: var(--fg); }
+.tabs a[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tabs + .pane { border-top-left-radius: 0; border-top-right-radius: 0; border-top: 0; }
+
+.pane { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.app .pane .rel, .app .pane .quote-head { display: none; }
+.controls { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.controls:empty { display: none; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 7px 14px; cursor: pointer; color: var(--fg); font: inherit; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { border: 1px solid var(--line); background: var(--chip); color: var(--fg); border-radius: 999px; padding: 6px 12px;
+  cursor: pointer; font: inherit; font-size: 13px; }
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: transparent; font-weight: 600; }
+
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px 16px; }
+.field label, .inline label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.field input, .field select, .inline input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--fg); font: inherit; }
+.field input:focus, .field select:focus, .inline input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.inline .pair { display: flex; gap: 8px; max-width: 460px; }
+.checks { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 14px; font-size: 14px; }
+.checks label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.primary { background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 8px; padding: 8px 18px;
+  font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.ghost { background: transparent; border: 1px solid var(--line); color: var(--fg); border-radius: 8px; padding: 8px 14px;
+  font: inherit; cursor: pointer; white-space: nowrap; }
+
+.empty { border: 1px dashed var(--line); border-radius: 12px; padding: 22px 18px; text-align: center; color: var(--muted); }
+.empty b { color: var(--fg); }
+.empty p { margin: 6px auto 0; max-width: 60ch; }
+.empty.err { color: var(--down); border-color: var(--down); }
+.loading { color: var(--muted); padding: 24px; text-align: center; }
+
+.app .flag { margin: 0; }
+.app .body h3, .app .pane h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 18px 0 8px; }
+.app .pane h3:first-child { margin-top: 0; }
+.app .note { font-size: 12px; color: var(--muted); }
+
+@media (max-width: 600px) {
+  .appbar-in { flex-wrap: wrap; gap: 8px 12px; }
+  .term { margin-left: auto; }
+  #search { order: 3; flex-basis: 100%; }
+  .pane, .controls { padding: 12px; border-radius: 10px; }
+  .sh-top h1 { font-size: 22px; }
+  .sh-px .px { font-size: 22px; }
+  .page-head h1 { font-size: 20px; }
+}

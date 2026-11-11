@@ -4,285 +4,43 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>IDX Lite</title>
-<style>
-  body { font-family: system-ui, sans-serif; margin: 0 auto; padding: 16px; max-width: 1000px; }
-  #wrap { max-height: 420px; overflow: auto; margin-top: 8px; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid #8884; white-space: nowrap; }
-  th { position: sticky; top: 0; background: Canvas; cursor: pointer; user-select: none; }
-  th:first-child, td:first-child { text-align: left; }
-  tr.row { cursor: pointer; }
-  tr.row:hover { background: #8881; }
-  .up { color: #16a34a; } .down { color: #dc2626; }
-  #chart { height: 380px; margin-top: 16px; }
-  input { padding: 6px 10px; width: 220px; }
-  small { opacity: .7; }
-  #macro { margin: 12px 0 16px; }
-  #macro-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-  .card { border: 1px solid #8884; border-radius: 8px; padding: 8px 10px; }
-  .card .lbl { font-size: 12px; opacity: .7; }
-  .card .val { font-size: 20px; font-weight: 600; }
-  .card .sub { font-size: 12px; min-height: 16px; }
-  .card.na .val { opacity: .4; }
-  #filters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 10px 0; font-size: 13px; }
-  #filters input[type=number] { width: 90px; }
-  #filters input[type=checkbox] { width: auto; }
-  #filters label { display: inline-flex; gap: 4px; align-items: center; }
-  #filters button { padding: 4px 10px; cursor: pointer; }
-  #fund { margin-top: 12px; font-size: 13px; overflow-x: auto; }
-  #fund h3 { margin: 14px 0 4px; font-size: 14px; }
-  #fund table { width: auto; min-width: 100%; }
-  #fund th { position: static; cursor: default; }
-</style>
+<meta name="description" content="Pantau saham Indonesia: harga, teknikal, fundamental, foreign flow, broker summary dan saham HSC.">
+<meta name="theme-color" content="#173d66">
+<link rel="stylesheet" href="terminal.css">
+<link rel="stylesheet" href="app.css">
 </head>
-<body>
-<h1>IDX Lite</h1>
-<small id="updated">Memuat…</small><br>
-<section id="macro"><div id="macro-cards"></div><small id="macro-meta"></small></section>
-<input id="q" placeholder="Cari kode, mis. BBCA"> <small id="count"></small>
-<div id="filters">
-  <label>Harga <input type="number" id="f-pmin" placeholder="min"> - <input type="number" id="f-pmax" placeholder="maks"></label>
-  <label>Nilai ≥ <input type="number" id="f-vmin" placeholder="miliar Rp"></label>
-  <label>RSI <input type="number" id="f-rmin" placeholder="min"> - <input type="number" id="f-rmax" placeholder="maks"></label>
-  <label>Chg % ≥ <input type="number" id="f-cmin" step="0.1" placeholder="min"></label>
-  <label><input type="checkbox" id="f-sma20"> Harga &gt; SMA20</label>
-  <label><input type="checkbox" id="f-sma50"> Harga &gt; SMA50</label>
-  <label><input type="checkbox" id="f-trend"> SMA20 &gt; SMA50</label>
-  <span>
-    <button data-preset="oversold">Oversold</button>
-    <button data-preset="overbought">Overbought</button>
-    <button data-preset="uptrend">Uptrend</button>
-    <button data-preset="gainers">Naik kuat</button>
-    <button data-preset="reset">Reset</button>
-  </span>
-</div>
-<div id="wrap">
-<table>
-  <thead><tr id="head"></tr></thead>
-  <tbody id="rows"></tbody>
-</table>
-</div>
-<h2 id="title"></h2>
-<div id="chart"></div>
-<div id="fund"></div>
-<p><small>Data tertunda dari Yahoo Finance. Hanya informasi, bukan saran investasi.</small></p>
+<body class="app">
+<header class="appbar">
+  <div class="appbar-in">
+    <a class="brand" href="#/"><b>idx</b>lite</a>
+    <form id="search" role="search" autocomplete="off">
+      <span class="ico" aria-hidden="true">⌕</span>
+      <input id="q" type="search" placeholder="Cari saham, mis. BBCA atau Bank Central" aria-label="Cari saham"
+             role="combobox" aria-expanded="false" aria-controls="qlist" aria-autocomplete="list" enterkeyhint="search">
+      <ul id="qlist" role="listbox" hidden></ul>
+    </form>
+    <a class="term" href="terminal.html" title="Mode terminal (ketik perintah)">Terminal</a>
+  </div>
+  <nav class="mainnav" aria-label="Menu utama">
+    <a href="#/" data-page="pasar">Pasar</a>
+    <a href="#/foreign" data-page="foreign">Foreign</a>
+    <a href="#/broker" data-page="broker">Broker</a>
+    <a href="#/bandar" data-page="bandar">Bandar</a>
+    <a href="#/screener" data-page="screener">Screener</a>
+    <a href="#/hsc" data-page="hsc">Saham HSC</a>
+  </nav>
+</header>
+
+<main id="view" tabindex="-1"></main>
+
+<footer class="foot">
+  <span id="fresh">Memuat status data…</span>
+  <span><a href="terminal.html">Mode terminal</a> · <a href="board.html">Papan tabel</a></span>
+  <span>Data tertunda dari Yahoo Finance, Indo Premier dan idx.co.id (lewat <a href="https://github.com/fzn0x/idx">idx</a>) serta Frankfurter. Hanya informasi, bukan saran investasi.</span>
+</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
-<script>
-const fmt = (n, d = 0) => n == null ? "-" : n.toLocaleString("id-ID", { maximumFractionDigits: d });
-const cols = [
-  ["symbol", "Kode"], ["price", "Harga"], ["change_pct", "Chg %"], ["volume", "Volume"],
-  ["value", "Nilai"], ["sma20", "SMA20"], ["sma50", "SMA50"], ["rsi14", "RSI14"],
-];
-let stocks = [], sortKey = "value", sortDir = -1, chart, series;
-
-const bigFmt = n => {
-  if (n == null) return "-";
-  const a = Math.abs(n);
-  if (a >= 1e12) return fmt(n / 1e12, 2) + " T";
-  if (a >= 1e9) return fmt(n / 1e9, 1) + " M";
-  if (a >= 1e6) return fmt(n / 1e6, 1) + " jt";
-  return fmt(n);
-};
-const pctCell = v => v == null ? "-" :
-  `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${fmt(v, 1)}%</span>`;
-const qLabel = d => { const [y, m] = d.split("-"); return `${y} Q${Math.ceil(Number(m) / 3)}`; };
-
-function fundTable(rows, annual) {
-  if (!rows || !rows.length) return "";
-  const body = rows.slice().reverse().map(r => `<tr>
-    <td>${annual ? r.date.slice(0, 4) : qLabel(r.date)}</td>
-    <td>${bigFmt(r.revenue)}</td>${annual ? "" : `<td>${pctCell(r.rev_qoq)}</td>`}<td>${pctCell(r.rev_yoy)}</td>
-    <td>${bigFmt(r.net_income)}</td>${annual ? "" : `<td>${pctCell(r.ni_qoq)}</td>`}<td>${pctCell(r.ni_yoy)}</td>
-    <td>${r.eps == null ? "-" : fmt(r.eps, 2)}</td></tr>`).join("");
-  const head = annual
-    ? "<th>Tahun</th><th>Pendapatan</th><th>YoY</th><th>Laba bersih</th><th>YoY</th><th>EPS</th>"
-    : "<th>Kuartal</th><th>Pendapatan</th><th>QoQ</th><th>YoY</th><th>Laba bersih</th><th>QoQ</th><th>YoY</th><th>EPS</th>";
-  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-}
-
-let fundSummary = null;
-async function loadFund(sym) {
-  const box = document.getElementById("fund");
-  box.innerHTML = "";
-  try {
-    if (!fundSummary) fundSummary = (await (await fetch("data/fundamentals.json")).json()).stocks || {};
-    const s = fundSummary[sym] || {};
-    const d = await (await fetch(`data/fundamentals/${sym}.json`)).json();
-    const snap = [
-      ["P/E", s.pe == null ? "-" : fmt(s.pe, 1)],
-      ["P/B", s.pb == null ? "-" : fmt(s.pb, 2)],
-      ["Dividen", s.div_yield == null ? "-" : fmt(s.div_yield, 2) + "%"],
-      ["ROE", s.roe == null ? "-" : fmt(s.roe, 1) + "%"],
-      ["Mkt cap", bigFmt(s.mcap)],
-    ].map(([k, v]) => `<b>${k}</b> ${v}`).join(" &nbsp;·&nbsp; ");
-    box.innerHTML = `<h3>Fundamental ${esc(sym)}</h3><div>${snap}</div>
-      <h3>Kinerja kuartalan</h3>${fundTable(d.quarters, false) || "<small>Tidak ada data kuartalan.</small>"}
-      <h3>Kinerja tahunan</h3>${fundTable(d.annual, true) || "<small>Tidak ada data tahunan.</small>"}
-      <p><small>Sumber: Yahoo Finance. Mata uang laporan: ${esc(d.currency || "?")}.
-      Angka kuartalan perusahaan IDX bisa bersifat kumulatif (YTD); cocokkan dengan laporan resmi.</small></p>`;
-  } catch (e) {
-    box.innerHTML = "<small>Data fundamental saham ini belum tersedia (diperbarui bertahap).</small>";
-  }
-}
-
-async function showChart(sym) {
-  document.getElementById("title").textContent = sym;
-  loadFund(sym);
-  const rows = await (await fetch(`data/prices/${sym}.json`)).json();
-  if (!chart) {
-    chart = LightweightCharts.createChart(document.getElementById("chart"), {
-      autoSize: true,
-      layout: { background: { color: "transparent" }, textColor: "#888" },
-      grid: { vertLines: { color: "#8882" }, horzLines: { color: "#8882" } },
-    });
-    series = chart.addCandlestickSeries();
-  }
-  series.setData(rows.map(r => ({ time: r[0], open: r[1], high: r[2], low: r[3], close: r[4] })));
-  chart.timeScale().fitContent();
-}
-
-function render() {
-  const q = document.getElementById("q").value.trim().toUpperCase();
-  const list = stocks
-    .filter(s => (!q || s.symbol.includes(q)) && passFilters(s))
-    .sort((a, b) => {
-      const x = a[sortKey], y = b[sortKey];
-      if (x == null) return 1;
-      if (y == null) return -1;
-      return (x > y ? 1 : x < y ? -1 : 0) * sortDir;
-    });
-  document.getElementById("count").textContent = `${list.length} saham`;
-  document.getElementById("rows").innerHTML = list.map(x => {
-    const cls = x.change_pct >= 0 ? "up" : "down";
-    return `<tr class="row" data-s="${x.symbol}"><td>${x.symbol}</td><td>${fmt(x.price)}</td>
-      <td class="${cls}">${fmt(x.change_pct, 2)}%</td><td>${fmt(x.volume)}</td><td>${fmt(x.value)}</td>
-      <td>${fmt(x.sma20)}</td><td>${fmt(x.sma50)}</td><td>${fmt(x.rsi14, 1)}</td></tr>`;
-  }).join("");
-}
-
-const macroDefs = [
-  { key: "usdidr", label: "USD/IDR", d: 0, unit: "" },
-  { key: "ihsg", label: "IHSG", d: 2, unit: "" },
-  { key: "crude_oil", label: "WTI (USD/bbl)", d: 2, unit: "" },
-  { key: "cds_5y", label: "CDS 5Y", d: 1, unit: " bps" },
-  { key: "bond_1y", label: "Yield 1Y", d: 2, unit: "%" },
-  { key: "bond_5y", label: "Yield 5Y", d: 2, unit: "%" },
-];
-const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-async function loadMacro() {
-  const box = document.getElementById("macro-cards");
-  const meta = document.getElementById("macro-meta");
-  try {
-    const m = await (await fetch("data/data.json")).json();
-    let manual = {};
-    try { manual = await (await fetch("data/manual.json")).json(); } catch (e) {}
-    const st = m.last_run_status || {};
-    let bad = 0;
-    box.innerHTML = macroDefs.map(def => {
-      let x = m[def.key], note = "";
-      if (!x || x.value == null) {
-        const mm = manual[def.key];
-        if (mm && mm.value != null) {
-          x = mm;
-          note = "manual" + (mm.date ? " · " + esc(mm.date) : "");
-        } else {
-          x = null;
-          bad++;
-          note = st[def.key] && st[def.key] !== "ok" ? "gagal diambil" : "belum ada data";
-        }
-      }
-      if (!x) {
-        return `<div class="card na"><div class="lbl">${def.label}</div><div class="val">n/a</div><div class="sub">${note}</div></div>`;
-      }
-      let sub = note;
-      if (x.change_pct != null) {
-        const cls = x.change_pct >= 0 ? "up" : "down";
-        sub = `<span class="${cls}">${x.change_pct >= 0 ? "+" : ""}${fmt(x.change_pct, 2)}%</span>`;
-      } else if (!note && x.date) {
-        sub = esc(x.date);
-      }
-      return `<div class="card"><div class="lbl">${def.label}</div>
-        <div class="val">${fmt(x.value, def.d)}${def.unit}</div><div class="sub">${sub}</div></div>`;
-    }).join("");
-    meta.textContent = "Makro diperbarui: " + new Date(m.last_updated).toLocaleString("id-ID") +
-      (bad ? ` · ${bad} indikator tidak tersedia` : "");
-  } catch (e) {
-    box.innerHTML = "";
-    meta.textContent = "Data makro belum tersedia.";
-  }
-}
-
-const inum = id => { const v = document.getElementById(id).value; return v === "" ? null : Number(v); };
-const ichk = id => document.getElementById(id).checked;
-
-function passFilters(s) {
-  const pmin = inum("f-pmin"), pmax = inum("f-pmax"), vmin = inum("f-vmin");
-  const rmin = inum("f-rmin"), rmax = inum("f-rmax"), cmin = inum("f-cmin");
-  if (pmin != null && !(s.price >= pmin)) return false;
-  if (pmax != null && !(s.price <= pmax)) return false;
-  if (vmin != null && !((s.value || 0) >= vmin * 1e9)) return false;
-  if (rmin != null && !(s.rsi14 != null && s.rsi14 >= rmin)) return false;
-  if (rmax != null && !(s.rsi14 != null && s.rsi14 <= rmax)) return false;
-  if (cmin != null && !(s.change_pct != null && s.change_pct >= cmin)) return false;
-  if (ichk("f-sma20") && !(s.sma20 != null && s.price > s.sma20)) return false;
-  if (ichk("f-sma50") && !(s.sma50 != null && s.price > s.sma50)) return false;
-  if (ichk("f-trend") && !(s.sma20 != null && s.sma50 != null && s.sma20 > s.sma50)) return false;
-  return true;
-}
-
-function resetFilters() {
-  document.querySelectorAll("#filters input").forEach(el => {
-    if (el.type === "checkbox") el.checked = false; else el.value = "";
-  });
-}
-
-const presets = {
-  oversold:   { rmax: 30, vmin: 1 },
-  overbought: { rmin: 70, vmin: 1 },
-  uptrend:    { sma20: true, sma50: true, trend: true, vmin: 1 },
-  gainers:    { cmin: 3, vmin: 1 },
-};
-
-function applyPreset(name) {
-  resetFilters();
-  for (const [k, v] of Object.entries(presets[name] || {})) {
-    const el = document.getElementById("f-" + k);
-    if (el.type === "checkbox") el.checked = v; else el.value = v;
-  }
-  render();
-}
-
-async function main() {
-  loadMacro();
-  const head = document.getElementById("head");
-  cols.forEach(([k, label]) => {
-    const th = document.createElement("th");
-    th.textContent = label;
-    th.onclick = () => { sortDir = sortKey === k ? -sortDir : -1; sortKey = k; render(); };
-    head.appendChild(th);
-  });
-  document.getElementById("rows").onclick = e => {
-    const tr = e.target.closest("tr");
-    if (tr) showChart(tr.dataset.s);
-  };
-  document.getElementById("q").oninput = render;
-  document.getElementById("filters").addEventListener("input", render);
-  document.getElementById("filters").addEventListener("click", e => {
-    const b = e.target.closest("button");
-    if (!b) return;
-    if (b.dataset.preset === "reset") { resetFilters(); render(); }
-    else applyPreset(b.dataset.preset);
-  });
-
-  const s = await (await fetch("data/summary.json")).json();
-  stocks = s.stocks;
-  document.getElementById("updated").textContent = "Diperbarui: " + new Date(s.updated).toLocaleString("id-ID");
-  render();
-  if (stocks.length) showChart(stocks.slice().sort((a, b) => (b.value || 0) - (a.value || 0))[0].symbol);
-}
-main();
-</script>
+<script src="core.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

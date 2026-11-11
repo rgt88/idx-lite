@@ -5,8 +5,14 @@ on:
     branches: [main]
   schedule:
     - cron: "0 1,3,5,7 * * 1-5"    # makro saja: 08, 10, 12, 14 WIB
-    - cron: "30 9 * * 1-5"         # makro + harga semua saham: 16:30 WIB
+    - cron: "30 9 * * 1-5"         # makro + harga + fundamental: 16:30 WIB
+    - cron: "30 12 * * 1-5"        # makro + harga (ulang) + foreign flow + broker summary: 19:30 WIB
   workflow_dispatch:
+    inputs:
+      flow:
+        description: "Ambil foreign flow & broker summary (hasil lengkap hanya setelah 19:00 WIB)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -18,6 +24,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -47,7 +54,8 @@ jobs:
           SCHED: ${{ github.event.schedule }}
           EVENT: ${{ github.event_name }}
         run: |
-          if [ "$EVENT" = "workflow_dispatch" ] || [ "$SCHED" = "30 9 * * 1-5" ] || [ ! -f docs/data/summary.json ]; then
+          # 16:30 dan diulang 19:30, supaya jadwal sore yang terlambat/terlewat GitHub tetap tertutup
+          if [ "$EVENT" = "workflow_dispatch" ] || [ "$SCHED" = "30 9 * * 1-5" ] || [ "$SCHED" = "30 12 * * 1-5" ] || [ ! -f docs/data/summary.json ]; then
             python scripts/fetch_prices.py
           else
             echo "Lewati update harga pada run ini"
@@ -64,6 +72,43 @@ jobs:
           else
             echo "Lewati update fundamental pada run ini"
           fi
+
+      - name: Tentukan perlu ambil foreign & broker
+        id: flow
+        env:
+          SCHED: ${{ github.event.schedule }}
+          EVENT: ${{ github.event_name }}
+          FLOW_INPUT: ${{ inputs.flow }}
+        run: |
+          if [ "$SCHED" = "30 12 * * 1-5" ] || { [ "$EVENT" = "workflow_dispatch" ] && [ "$FLOW_INPUT" = "true" ]; }; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache respons idx
+        if: steps.flow.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .idx-cache
+          key: idx-cache-${{ github.run_id }}
+          restore-keys: idx-cache-
+
+      - name: Pasang CLI idx
+        if: steps.flow.outputs.run == 'true'
+        continue-on-error: true
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/fzn0x/idx/main/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Update foreign flow & broker summary
+        if: steps.flow.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          IDX_CACHE_DIR: ${{ github.workspace }}/.idx-cache
+        run: |
+          idx version
+          python scripts/fetch_flow.py
 
       - name: Deploy ke gh-pages
         run: |
