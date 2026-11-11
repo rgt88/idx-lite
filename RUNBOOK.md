@@ -14,7 +14,7 @@ python scripts/cek_status.py --runs
 Contoh hasil normal setelah 17:30:
 
 ```
-makro           OK            diperbarui 8 menit lalu; sumber gagal: cds_5y, bond_1y, bond_5y
+makro           OK            diperbarui 8 menit lalu
 harga           OK            sesi 2026-11-11 (seharusnya 2026-11-11), 912 saham, diambil 35 menit lalu
 fundamental     OK            diperbarui 32 menit lalu; 400 saham tercakup, 120 dengan target analis
 kepemilikan     OK            register 2026-10-30, pembanding 2026-09-30
@@ -25,7 +25,7 @@ hsc             OK            383 saham, pengumuman 2026-11-11
 
 Arti status: **OK** sesuai harapan · **TELAT** belum diperbarui sesuai jadwal · **SEBAGIAN** sebagian sumber berhasil · **SUMBER ERROR** sumber eksternal sedang bermasalah · **GAGAL** file tidak terbaca (situs atau terbitnya bermasalah).
 
-`sumber gagal: cds_5y, bond_1y, bond_5y` di makro **normal** untuk saat ini (sumbernya berubah, diisi manual lewat `docs/data/manual.json`).
+CDS 5Y tidak punya sumber gratis resmi, jadi diisi manual lewat `docs/data/manual.json` (contoh: `{"cds_5y": {"value": 92.5, "date": "2026-11-12"}}`), lalu push. Yield 2Y/5Y/10Y diambil otomatis dari AsianBondsOnline (ADB).
 
 Dari HP: buka situs, lihat baris *Diperbarui* di bagian bawah, atau buka tab **Actions** di github.com/rgt88/idx-lite.
 

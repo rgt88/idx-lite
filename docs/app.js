@@ -7,6 +7,7 @@ const TABS = [
 ];
 const PAGES = {
   pasar: { title: "Pasar hari ini", desc: "Indikator makro, saham naik dan turun terbanyak, yang paling aktif, aliran dana asing, dan broker teratas.", cmd: "market" },
+  makro: { title: "Makro", desc: "Kurs, IHSG, minyak, yield SBN dan CDS, dengan grafik tren.", cmd: "macro" },
   foreign: { title: "Foreign flow", desc: "Saham yang paling banyak dibeli dan dijual investor asing pada sesi terakhir. Ketuk kode saham untuk riwayatnya.", cmd: "foreign" },
   broker: { title: "Broker", desc: "Ranking broker seluruh pasar pada sesi terakhir. Ketuk kode broker untuk melihat saham yang ia beli dan jual.", cmd: "brokers" },
   bandar: { title: "Bandarmology", desc: "Apakah broker terbesar sedang mengumpulkan (akumulasi) atau melepas (distribusi) saham? Dihitung untuk 100 saham paling aktif.", cmd: "bandar screen" },
@@ -16,7 +17,7 @@ const PAGES = {
   x: { title: "Hasil", desc: "", cmd: null },
 };
 const TAB_OF = { quote: "ringkasan", brief: "ringkasan", technical: "teknikal", fundamental: "fundamental", analyst: "analis", ownership: "kepemilikan", broker: "broker", foreign: "foreign", bandar: "bandar" };
-const PAGE_OF = { market: "pasar", macro: "pasar", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc", ownership: "kepemilikan" };
+const PAGE_OF = { market: "pasar", macro: "makro", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc", ownership: "kepemilikan" };
 
 const view = $("#view");
 

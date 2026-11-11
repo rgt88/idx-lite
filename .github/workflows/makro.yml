@@ -18,9 +18,15 @@ jobs:
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/restore
         with:
-          paths: data/data.json
+          paths: |
+            data/data.json
+            data/macro_series.json
+            data/macro_hist.json
       - run: python scripts/macro_update.py
       - uses: ./.github/actions/publish
         with:
-          paths: data/data.json
+          paths: |
+            data/data.json
+            data/macro_series.json
+            data/macro_hist.json
           message: makro

@@ -78,7 +78,7 @@ if not m:
     add("makro", "GAGAL", "data.json tidak bisa dibaca")
 else:
     ts = parse_ts(m.get("last_updated"))
-    failed = [k for k, v in (m.get("last_run_status") or {}).items() if v != "ok"]
+    failed = [k for k, v in (m.get("last_run_status") or {}).items() if v != "ok" and not str(v).startswith("manual")]
     stale = ts is None or NOW - ts > timedelta(hours=26 if NOW.weekday() < 5 else 80)
     add("makro", "TELAT" if stale else "OK",
         f"diperbarui {age(ts)}" + (f"; sumber gagal: {', '.join(failed)}" if failed else ""))

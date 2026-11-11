@@ -61,7 +61,7 @@ flowchart LR
 | Tampilan utama | `docs/index.html`, `docs/app.js`, `docs/app.css` | Menu, pencarian saham, halaman saham bertab, formulir screener; memanggil perintah dari `core.js` |
 | Mode terminal | `docs/terminal.html`, `docs/terminal.js`, `docs/terminal.css` | Baris perintah untuk pengguna mahir; `terminal.css` juga dipakai tampilan utama |
 | Papan tabel | `docs/board.html` | Tampilan lama: tabel semua saham, screener, watchlist |
-| Makro | `scripts/macro_update.py` | USD/IDR, IHSG, WTI, CDS, yield → `data.json` |
+| Makro | `scripts/macro_update.py` | USD/IDR, IHSG, WTI, yield SBN 2Y/5Y/10Y (AsianBondsOnline), CDS manual → `data.json`, `macro_series.json`, `macro_hist.json` |
 | Harga | `scripts/fetch_prices.py` | Candle harian 1 tahun semua saham di `symbols.txt` → `prices/`, `summary.json` |
 | Fundamental | `scripts/fetch_fundamentals.py` | Valuasi, laporan kuartalan dan tahunan, 100 saham per run (bergilir) → `fundamentals/`, `fundamentals.json` |
 | Foreign & broker | `scripts/fetch_flow.py` | Memanggil CLI [`idx`](https://github.com/fzn0x/idx) → `flow/` |
@@ -112,7 +112,9 @@ Kalau skrip gagal total, publish tidak dijalankan dan situs tetap menampilkan da
 | `prices/KODE.json` | `[tanggal, open, high, low, close, volume]` per hari, 1 tahun | fetch_prices |
 | `fundamentals.json` | Ringkasan valuasi per saham + kapan diambil | fetch_fundamentals |
 | `fundamentals/KODE.json` | Laporan kuartalan (≤ 8) dan tahunan (≤ 4) dengan QoQ/YoY | fetch_fundamentals |
-| `data.json` | Indikator makro + status tiap sumber | macro_update |
+| `data.json` | Indikator makro + perubahan (yield dalam bp: 1 hari, 1 minggu, YTD) + status tiap sumber | macro_update |
+| `macro_series.json` | Riwayat harian 1 tahun IHSG, USD/IDR, WTI (Yahoo) | macro_update |
+| `macro_hist.json` | Arsip harian sendiri semua indikator makro (untuk tren yield & CDS), maks 3 tahun | macro_update |
 | `flow/bandar_1d.json`, `bandar_1w.json` | Bandarmology 100 saham teraktif (`idx.bandar.screen.v1`) | fetch_flow |
 | `flow/market_foreign.json` | Net asing per saham: rupiah dari IPOT (`idx.market.foreign.value.v1`), atau lembar dari idx.co.id (`idx.market.foreign.v1`) bila `idx` versi rilis belum punya `--source ipot` | fetch_flow |
 | `flow/market_brokers.json` | Ranking broker seluruh pasar (`idx.market.brokers.v1`) | fetch_flow |

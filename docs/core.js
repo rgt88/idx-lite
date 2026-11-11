@@ -670,19 +670,84 @@ def("screen", "screen rsi<30,value>1B", "Saring semua saham. Kunci: price, chg, 
 });
 
 /* pasar */
-async function macroCards() {
-  const m = await getJSON("data.json", true);
-  const manual = (await getJSON("manual.json", true)) || {};
-  if (!m) return "";
-  const defs = [["usdidr", "USD/IDR", 0, ""], ["ihsg", "IHSG", 2, ""], ["crude_oil", "WTI", 2, ""], ["cds_5y", "CDS 5Y", 1, " bps"], ["bond_1y", "Yield 1Y", 2, "%"], ["bond_5y", "Yield 5Y", 2, "%"]];
-  return `<div class="cards">${defs.map(([k, l, d, u]) => {
-    let x = m[k], note = "";
-    if (!x || x.value == null) { x = manual[k]; note = x?.value != null ? `manual ${esc(x.date || "")}` : "tidak tersedia"; }
-    if (!x || x.value == null) return card(l, "–", note);
-    return card(l, nf(x.value, d) + u, isNum(x.change_pct) ? pct(x.change_pct) : note || esc(x.date || ""));
-  }).join("")}</div><p class="note">Makro diperbarui ${wib(m.last_updated)}</p>`;
+/* ---------- makro: kartu bertren + halaman grafik ---------- */
+const MACRO = [
+  { k: "usdidr", l: "USD/IDR", d: 0, u: "", inv: 1 }, { k: "ihsg", l: "IHSG", d: 2, u: "" }, { k: "crude_oil", l: "Minyak WTI", d: 2, u: "" },
+  { k: "bond_2y", l: "Yield SBN 2Y", d: 2, u: "%", y: 1, inv: 1 }, { k: "bond_5y", l: "Yield SBN 5Y", d: 2, u: "%", y: 1, inv: 1 }, { k: "bond_10y", l: "Yield SBN 10Y", d: 2, u: "%", y: 1, inv: 1 },
+  { k: "cds_5y", l: "CDS 5Y", d: 1, u: " bps", y: 1, inv: 1 },
+];
+const bpTxt = (v) => (isNum(v) ? `<span class="${v > 0 ? "down" : v < 0 ? "up" : ""}">${v > 0 ? "▲" : v < 0 ? "▼" : ""}${nf(Math.abs(v), 1)}</span>` : "–");
+async function macroData() {
+  const [m, series, hist, manual] = await Promise.all([getJSON("data.json", true), getJSON("macro_series.json", true), getJSON("macro_hist.json", true), getJSON("manual.json", true)]);
+  /* riwayat per indikator: seri Yahoo 1 tahun, disambung arsip harian sendiri */
+  const seriesOf = (k) => {
+    const map = new Map((series?.[k] || []).map(([d, v]) => [d, v]));
+    for (const [d, v] of Object.entries(hist?.[k] || {})) if (!map.has(d)) map.set(d, v);
+    return [...map.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  };
+  return { m, manual: manual || {}, seriesOf };
 }
-def("macro", "macro", "USD/IDR, IHSG, minyak WTI, CDS dan yield obligasi.", macroCards);
+function spark(rows, invert) {
+  const pts = rows.slice(-60);
+  if (pts.length < 2) return "";
+  const vs = pts.map((r) => r[1]), lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
+  const xy = vs.map((v, i) => `${((i / (vs.length - 1)) * 100).toFixed(1)},${(28 - ((v - lo) / span) * 26 - 1).toFixed(1)}`).join(" ");
+  const up = vs[vs.length - 1] >= vs[0];
+  const good = invert ? !up : up;   // yield/CDS naik = memburuk
+  return `<svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"><polyline points="${xy}" class="${good ? "up" : "down"}"/></svg>`;
+}
+async function macroCards() {
+  const { m, manual, seriesOf } = await macroData();
+  if (!m) return "";
+  return `<div class="cards macro">${MACRO.map((c) => {
+    let x = m[c.k], note = "";
+    if ((!x || x.value == null) && manual[c.k]?.value != null) { x = manual[c.k]; note = `manual ${esc(x.date || "")}`; }
+    if (!x || x.value == null) return `<a class="card" data-cmd="macro"><div class="l">${c.l}</div><div class="v">–</div><div class="s">${c.k === "cds_5y" ? "isi di manual.json" : "tidak tersedia"}</div></a>`;
+    const sub = c.y && isNum(x.chg_1d_bp)
+      ? `${bpTxt(x.chg_1d_bp)} bp · 1mg ${bpTxt(x.chg_1w_bp)} · YTD ${bpTxt(x.chg_ytd_bp)}`
+      : isNum(x.change_pct) ? `<span class="${cls(c.inv ? -x.change_pct : x.change_pct)}">${x.change_pct > 0 ? "+" : ""}${nf(x.change_pct, 2)}%</span>` : note || esc(x.date || "");
+    return `<a class="card" data-cmd="macro" title="Lihat grafik"><div class="l">${c.l}</div><div class="v">${nf(x.value, c.d)}${c.u}</div><div class="s">${sub}</div>${spark(seriesOf(c.k), c.inv)}</a>`;
+  }).join("")}</div><p class="note">Makro diperbarui ${wib(m.last_updated)} · yield: AsianBondsOnline (ADB), perubahan dalam basis poin · ketuk kartu untuk grafik</p>`;
+}
+def("macro", "macro", "Indikator makro dengan grafik tren: USD/IDR, IHSG, minyak WTI, yield SBN 2Y/5Y/10Y, CDS 5Y.", async (a, body) => {
+  const { m, manual, seriesOf } = await macroData();
+  need(m, "Data makro belum tersedia.");
+  const charts = MACRO.map((c) => {
+    const rows = seriesOf(c.k);
+    const x = m[c.k]?.value != null ? m[c.k] : manual[c.k];
+    return { ...c, rows, x };
+  });
+  body.innerHTML = `
+    ${await macroCards()}
+    <div class="btns" data-mrange>${["1M", "3M", "6M", "1Y", "Semua"].map((k) => `<button class="btn" data-r="${k}" aria-pressed="${k === "3M"}">${k}</button>`).join("")}</div>
+    <div class="grid">${charts.map((c) => `
+      <div class="mchart"><h3>${c.l}${c.x?.value != null ? ` · ${nf(c.x.value, c.d)}${c.u}` : ""}</h3>
+        ${c.rows.length >= 2 ? `<div class="chart sm" data-k="${c.k}"></div>` : `<div class="empty"><p>${c.k === "cds_5y" ? "Belum ada riwayat. CDS diisi manual di docs/data/manual.json; setiap isian tercatat sebagai satu titik." : "Riwayat sedang dikumpulkan, satu titik per hari sejak sumber ini dipasang."}</p></div>`}
+        ${c.y && c.rows.length ? `<p class="note">Riwayat sejak ${tgl(c.rows[0][0])} (${c.rows.length} titik).</p>` : ""}
+      </div>`).join("")}</div>
+    <p class="note">Sumber: Frankfurter (kurs ECB) dan Yahoo Finance untuk USD/IDR, IHSG, WTI; AsianBondsOnline (ADB) untuk yield SBN; CDS 5Y diisi manual karena tidak ada sumber gratis resmi. Warna: untuk USD/IDR (rupiah melemah), yield dan CDS, kenaikan ditandai merah.</p>`;
+  if (!chartReady()) return;
+  const made = [];
+  for (const c of charts) {
+    const el = body.querySelector(`.chart[data-k="${c.k}"]`);
+    if (!el) continue;
+    const ch = mkChart(el, (p) => nf(p, c.d));
+    const s = ch.addAreaSeries({ lineWidth: 2, lineColor: "#2f6fde", topColor: "rgba(47,111,222,.25)", bottomColor: "rgba(47,111,222,0)", priceLineVisible: false });
+    s.setData(c.rows.map(([time, value]) => ({ time, value })));
+    made.push([ch, c.rows]);
+  }
+  const DAYS = { "1M": 31, "3M": 92, "6M": 183, "1Y": 366, Semua: 99999 };
+  const setRange = (k) => {
+    const from = new Date(Date.now() - DAYS[k] * 864e5).toISOString().slice(0, 10);
+    for (const [ch, rows] of made) {
+      const f = rows.find((r) => r[0] >= from)?.[0] || rows[0][0];
+      ch.timeScale().setVisibleRange({ from: f, to: rows[rows.length - 1][0] });
+    }
+    body.querySelectorAll("[data-mrange] button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.r === k));
+  };
+  body.querySelector("[data-mrange]").addEventListener("click", (e) => { const b = e.target.closest("[data-r]"); if (b) setRange(b.dataset.r); });
+  requestAnimationFrame(() => setRange("3M"));
+}, ["makro"]);
 
 def("market", "market", "Ringkasan pasar: makro, breadth, top gainer/loser/teraktif, asing dan broker.", async () => {
   const s = await summary();
