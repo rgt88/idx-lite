@@ -38,7 +38,7 @@ async function run(line, { record = true } = {}) {
 /* ---------- baris perintah & saran ---------- */
 const input = $("#cmd"), list = $("#sugg");
 let hIdx = -1, sel = -1, items = [];
-const SYM_CMDS = ["quote", "brief", "technical", "fundamental", "ownership", "broker", "foreign", "bandar"];
+const SYM_CMDS = ["quote", "brief", "technical", "fundamental", "analyst", "ownership", "broker", "foreign", "bandar"];
 function suggestions(text) {
   const t = text.trimStart(), lower = t.toLowerCase();
   if (!t) return [];

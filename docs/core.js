@@ -349,10 +349,69 @@ def("fundamental", "fundamental BBCA", "Valuasi dan kinerja kuartalan/tahunan (p
   ], (rows || []).slice().reverse(), "Tidak ada data.");
   body.innerHTML = `
     ${kv([["P/E", nf(f.pe, 1)], ["P/B", nf(f.pb, 2)], ["Dividen", isNum(f.div_yield) ? nf(f.div_yield, 2) + "%" : "–"], ["ROE", isNum(f.roe) ? nf(f.roe, 1) + "%" : "–"], ["Mkt cap", big(f.mcap)], ["Diambil", esc(f.fetched || "–")]])}
+    ${d?.analyst ? `<h3>Target analis</h3>${kv([["Rekomendasi", recWord(d.analyst.recommendation)], ["Analis", nf(d.analyst.analysts)], ["Target rata-rata", nf(d.analyst.target_mean)], ["Rentang", isNum(d.analyst.target_low) ? `${nf(d.analyst.target_low)} – ${nf(d.analyst.target_high)}` : "–"]])}<div class="btns">${cmdBtn(`analyst ${sym}`, "detail analis & riwayat per sekuritas")}</div>` : ""}
     <h3>Kuartalan</h3>${tbl(d?.quarters, false)}
     <h3>Tahunan</h3>${tbl(d?.annual, true)}
     <p class="note">Sumber Yahoo Finance, mata uang laporan ${esc(d?.currency || "?")}. Kuartal yang tidak tersedia tampil kosong. Cocokkan dengan laporan resmi.</p>`;
 }, ["fund", "f"]);
+
+/* ---------- target harga analis ---------- */
+const REC = { strong_buy: ["Beli kuat", "up"], buy: ["Beli", "up"], hold: ["Tahan", ""], underperform: ["Di bawah pasar", "down"], sell: ["Jual", "down"], strong_sell: ["Jual kuat", "down"] };
+const UD_ACTION = { up: "naik peringkat", down: "turun peringkat", main: "pertahankan", init: "mulai meliput", reit: "tegaskan ulang" };
+const TGT_ACTION = { Raises: ["naik", "up"], Lowers: ["turun", "down"], Maintains: ["tetap", ""], Announces: ["baru", ""] };
+const PERIOD = { "0m": "Bulan ini", "-1m": "1 bulan lalu", "-2m": "2 bulan lalu", "-3m": "3 bulan lalu" };
+const recWord = (k) => (k && REC[k] ? `<b class="${REC[k][1]}">${REC[k][0]}</b>` : k && k !== "none" ? esc(k) : "–");
+
+/* Data analis: dari fundamentals/KODE.json (Yahoo, lengkap) atau, kalau belum ada, dari brief (ringkas). */
+async function analystOf(sym) {
+  const d = await getJSON(`fundamentals/${sym}.json`, true);
+  if (d?.analyst) return { a: d.analyst, src: `Yahoo Finance, diambil ${tgl(d.fetched)}` };
+  const b = await getJSON(`brief/${sym}.json`, true);
+  const x = b?.data?.fundamentals?.analyst;
+  if (x && (x.target_mean != null || x.recommendation)) {
+    return { a: { recommendation: x.recommendation, analysts: x.analysts, target_mean: x.target_mean, target_high: x.target_high, target_low: x.target_low, trend: [], history: [] },
+             src: `idx stocks brief, ${wib(b.fetched_at)}` };
+  }
+  return null;
+}
+const upside = (target, price) => (isNum(target) && isNum(price) && price ? (target / price - 1) * 100 : null);
+
+function analystHtml(a, price, src) {
+  const up = upside(a.target_mean, price);
+  const lo = a.target_low, hi = a.target_high;
+  let bar = "";
+  if (isNum(lo) && isNum(hi) && hi > lo) {
+    const min = Math.min(lo, price), max = Math.max(hi, price), pos = (v) => ((v - min) / (max - min)) * 100;
+    bar = `<div class="tbar" aria-hidden="true"><div class="tbar-range" style="left:${pos(lo)}%;width:${pos(hi) - pos(lo)}%"></div>
+      ${isNum(a.target_mean) ? `<div class="tbar-mean" style="left:${pos(a.target_mean)}%" title="Target rata-rata"></div>` : ""}
+      <div class="tbar-px" style="left:${pos(price)}%" title="Harga sekarang"></div></div>
+      <div class="tbar-legend"><span>Terendah ${nf(lo)}</span><span>■ harga sekarang ${nf(price)} · ┃ target rata-rata</span><span>Tertinggi ${nf(hi)}</span></div>`;
+  }
+  const trend = (a.trend || []).filter((r) => PERIOD[r.period] !== undefined);
+  const hist = a.history || [];
+  return `
+    ${kv([["Rekomendasi", recWord(a.recommendation)], ["Jumlah analis", nf(a.analysts)], ["Target rata-rata", nf(a.target_mean)],
+          ["Potensi dari harga", pct(up, 1)], ["Target median", nf(a.target_median)], ["Target tertinggi", nf(hi)], ["Target terendah", nf(lo)]])}
+    ${bar}
+    ${trend.length ? `<h3>Sebaran rekomendasi</h3>${table([{ h: "Periode", f: (r) => PERIOD[r.period] }, { h: "Beli kuat", n: 1, k: "strongBuy" }, { h: "Beli", n: 1, k: "buy" },
+        { h: "Tahan", n: 1, k: "hold" }, { h: "Jual", n: 1, k: "sell" }, { h: "Jual kuat", n: 1, k: "strongSell" }], trend)}` : ""}
+    <h3>Riwayat per sekuritas</h3>
+    ${hist.length ? table([{ h: "Tanggal terbit", f: (r) => tgl(r.date) }, { h: "Sekuritas / analis", f: (r) => esc(r.firm || "–") },
+        { h: "Rekomendasi", f: (r) => (r.from && r.from !== r.to ? `${esc(r.from)} → ` : "") + `<b>${esc(r.to || "–")}</b>` },
+        { h: "Aksi", f: (r) => esc(UD_ACTION[r.action] || r.action || "–") },
+        { h: "Target", n: 1, f: (r) => (isNum(r.target) ? (isNum(r.prior_target) && r.prior_target !== r.target ? `${nf(r.prior_target)} → ` : "") + `<b>${nf(r.target)}</b>` : "–") },
+        { h: "", f: (r) => (r.target_action && TGT_ACTION[r.target_action] ? `<span class="${TGT_ACTION[r.target_action][1]}">${TGT_ACTION[r.target_action][0]}</span>` : "") }], hist)
+      : `<div class="empty"><p>Sumber tidak mencantumkan nama sekuritas atau tanggal terbit untuk saham ini. Yang tersedia hanya ringkasan target di atas.</p></div>`}
+    <p class="note">Sumber: ${esc(src)}. Target dan rekomendasi dikumpulkan Yahoo Finance dari sekuritas yang meliput saham ini; cakupan untuk saham Indonesia sering terbatas dan bisa tertinggal dari laporan riset terbaru. Bukan saran investasi.</p>`;
+}
+
+def("analyst", "analyst BBCA", "Target harga dan rekomendasi analis: rata-rata, rentang, sebaran, dan riwayat per sekuritas beserta tanggal terbit.", async (a) => {
+  const sym = symArg(a);
+  const s = await stock(sym);
+  const r = await analystOf(sym);
+  if (!r) return `<div class="empty"><b>Belum ada data analis untuk ${esc(sym)}.</b><p>Data ini ikut pengambilan fundamental (100 saham per hari, yang paling aktif dulu). Banyak saham kecil memang tidak diliput analis.</p></div>`;
+  return analystHtml(r.a, s.price, r.src);
+}, ["target", "analis"]);
 
 def("broker", "broker BBCA", "Broker summary sesi terakhir: 10 pembeli dan penjual terbesar, rata-rata harga, foreign net.", async (a, body) => {
   const sym = symArg(a);
@@ -590,8 +649,9 @@ const SKEYS = {
   sma20: (r) => r.sma20, sma50: (r) => r.sma50, pe: (r) => r.f?.pe, pb: (r) => r.f?.pb, div: (r) => r.f?.div_yield,
   roe: (r) => r.f?.roe, mcap: (r) => r.f?.mcap, revyoy: (r) => r.f?.rev_yoy, niyoy: (r) => r.f?.ni_yoy,
   hsc: (r) => (HSC_SET.has(r.symbol) ? 1 : 0),
+  target: (r) => r.f?.target, upside: (r) => upside(r.f?.target, r.price), analysts: (r) => r.f?.analysts,
 };
-def("screen", "screen rsi<30,value>1B", "Saring semua saham. Kunci: price, chg, volume, value, rsi, sma20, sma50, pe, pb, div, roe, mcap, revyoy, niyoy, hsc (1/0).", async (a) => {
+def("screen", "screen rsi<30,value>1B", "Saring semua saham. Kunci: price, chg, volume, value, rsi, sma20, sma50, pe, pb, div, roe, mcap, revyoy, niyoy, target, upside (% ke target analis), analysts, hsc (1/0).", async (a) => {
   const text = [a.pos.join(","), a.flags.filter].filter((x) => x && x !== true).join(",");
   need(text, "Contoh: screen rsi<30,value>1B atau screen price>sma20,sma20>sma50 --sort value");
   const [s, f] = await Promise.all([summary(), fundIndex()]);
@@ -735,10 +795,13 @@ def("brief", "brief BBCA", "Satu halaman: poin penting, valuasi, teknikal, retur
   const pts = [];
   pts.push(`Harga terakhir <b>${nf(s.price)}</b> (${pct(s.change_pct)}) pada ${tgl(s.date)}, nilai transaksi ${big(s.value)}.`);
 
+  // jendela return di JSON idx bernama "1m", "ytd", "1y" (bukan m1/y1)
+  const win = (o, k) => (o ? o[k] ?? o[{ "1m": "m1", "1y": "y1" }[k]] : null);
   const R = d?.returns?.returns, X = d?.returns?.benchmark?.excess;
-  if (R) {
-    pts.push(`Return 1 bulan ${pct(R.m1, 1)}, sejak awal tahun ${pct(R.ytd, 1)}, setahun ${pct(R.y1, 1)}` +
-      (X && isNum(X.y1) ? `; ${X.y1 >= 0 ? "lebih baik" : "lebih buruk"} <b>${nf(Math.abs(X.y1), 1)} poin</b> dibanding IHSG dalam setahun.` : "."));
+  if (R && [win(R, "1m"), win(R, "ytd"), win(R, "1y")].some(isNum)) {
+    const x1y = win(X, "1y");
+    pts.push(`Return 1 bulan ${pct(win(R, "1m"), 1)}, sejak awal tahun ${pct(win(R, "ytd"), 1)}, setahun ${pct(win(R, "1y"), 1)}` +
+      (isNum(x1y) ? `; ${x1y >= 0 ? "lebih baik" : "lebih buruk"} <b>${nf(Math.abs(x1y), 1)} poin</b> dibanding IHSG dalam setahun.` : "."));
   } else if (rows?.length > 22) {
     const c = rows.map((r) => r[4]), n = c.length - 1;
     pts.push(`Return 1 bulan ${pct((c[n] / c[n - 21] - 1) * 100, 1)}, sekitar setahun ${pct((c[n] / c[0] - 1) * 100, 1)}.`);
@@ -748,6 +811,12 @@ def("brief", "brief BBCA", "Satu halaman: poin penting, valuasi, teknikal, retur
   const v = fu.verdict;
   if (v || isNum(pe) || isNum(pb)) {
     pts.push(`${v ? `Menurut aturan valuasi idx, saham ini ${word(VERDICT, v.label)} (skor ${v.score}). ` : ""}P/E ${nf(pe, 1)}, P/B ${nf(pb, 2)}, ROE ${isNum(roe) ? nf(roe, 1) + "%" : "–"}.`);
+  }
+
+  const an = await analystOf(sym);
+  if (an?.a && isNum(an.a.target_mean)) {
+    const up = upside(an.a.target_mean, s.price);
+    pts.push(`Target rata-rata ${an.a.analysts ? `${an.a.analysts} analis` : "analis"} <b>${nf(an.a.target_mean)}</b> (${pct(up, 1)} dari harga sekarang)${an.a.recommendation && an.a.recommendation !== "none" ? `, rekomendasi ${recWord(an.a.recommendation)}` : ""}.`);
   }
 
   const t = d?.technical;
@@ -818,7 +887,7 @@ function resolve(tokens) {
   if (/^[a-z0-9]{4}(\.jk)?$/i.test(first)) return [COMMANDS.quote, tokens];
   return [null, tokens];
 }
-const FLAG_CMDS = () => new Set(["quote", "brief", "technical", "fundamental", "ownership", "broker", "foreign", "bandar"].map((n) => COMMANDS[n]));
+const FLAG_CMDS = () => new Set(["quote", "brief", "technical", "fundamental", "analyst", "ownership", "broker", "foreign", "bandar"].map((n) => COMMANDS[n]));
 /* riwayat */
 const HKEY = "idx-lite-history";
 const loadHist = () => { try { return JSON.parse(localStorage.getItem(HKEY) || "[]"); } catch (e) { return []; } };

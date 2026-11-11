@@ -3,7 +3,7 @@
 
 const TABS = [
   ["ringkasan", "Ringkasan", "brief"], ["teknikal", "Teknikal", "technical"], ["fundamental", "Fundamental", "fundamental"],
-  ["kepemilikan", "Kepemilikan", "ownership"], ["broker", "Broker", "broker"], ["foreign", "Foreign", "foreign"], ["bandar", "Bandar", "bandar"],
+  ["analis", "Analis", "analyst"], ["kepemilikan", "Kepemilikan", "ownership"], ["broker", "Broker", "broker"], ["foreign", "Foreign", "foreign"], ["bandar", "Bandar", "bandar"],
 ];
 const PAGES = {
   pasar: { title: "Pasar hari ini", desc: "Indikator makro, saham naik dan turun terbanyak, yang paling aktif, aliran dana asing, dan broker teratas.", cmd: "market" },
@@ -15,7 +15,7 @@ const PAGES = {
   hsc: { title: "Saham HSC", desc: "Saham dengan kepemilikan sangat terkonsentrasi menurut BEI. Free float-nya kecil, jadi harganya mudah bergerak tajam.", cmd: "hsc" },
   x: { title: "Hasil", desc: "", cmd: null },
 };
-const TAB_OF = { quote: "ringkasan", brief: "ringkasan", technical: "teknikal", fundamental: "fundamental", ownership: "kepemilikan", broker: "broker", foreign: "foreign", bandar: "bandar" };
+const TAB_OF = { quote: "ringkasan", brief: "ringkasan", technical: "teknikal", fundamental: "fundamental", analyst: "analis", ownership: "kepemilikan", broker: "broker", foreign: "foreign", bandar: "bandar" };
 const PAGE_OF = { market: "pasar", macro: "pasar", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc", ownership: "kepemilikan" };
 
 const view = $("#view");
@@ -135,11 +135,11 @@ const SF = [
   ["pe", "pe<=", "P/E maks"], ["roe", "roe>=", "ROE min (%)"], ["div", "div>=", "Dividen min (%)"],
 ];
 const SC = [["a20", "price>sma20", "Harga di atas SMA20"], ["a50", "price>sma50", "Harga di atas SMA50"], ["up", "sma20>sma50", "SMA20 di atas SMA50 (tren naik)"], ["nohsc", "hsc=0", "Kecualikan saham HSC"]];
-const SORTS = [["value", "Nilai transaksi"], ["chg", "Kenaikan hari ini"], ["rsi", "RSI"], ["pe", "P/E"], ["roe", "ROE"], ["div", "Dividen"], ["mcap", "Kapitalisasi"]];
+const SORTS = [["value", "Nilai transaksi"], ["chg", "Kenaikan hari ini"], ["rsi", "RSI"], ["pe", "P/E"], ["roe", "ROE"], ["div", "Dividen"], ["mcap", "Kapitalisasi"], ["upside", "Potensi ke target analis"]];
 const SPRESETS = [
   ["Oversold & likuid", "screen rsi<=30,value>=1B,hsc=0"], ["Tren naik", "screen price>sma20,price>sma50,sma20>sma50,value>=5B,hsc=0"],
   ["Naik kuat hari ini", "screen chg>=5,value>=1B,hsc=0 --sort chg"], ["Murah & ROE tinggi", "screen pe<=10,pe>0,roe>=15,hsc=0 --sort roe"],
-  ["Dividen tinggi", "screen div>=5,mcap>=10T,hsc=0 --sort div"],
+  ["Dividen tinggi", "screen div>=5,mcap>=10T,hsc=0 --sort div"], ["Jauh di bawah target analis", "screen upside>=30,analysts>=3,value>=1B,hsc=0 --sort upside"],
 ];
 function screenerForm(el, c) {
   const a = parseArgs(tokenize(c || "").slice(1));

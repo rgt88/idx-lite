@@ -13,7 +13,7 @@ OUT = ROOT / "docs" / "data"
 FD = OUT / "fundamentals"
 FD.mkdir(parents=True, exist_ok=True)
 SUMMARY = OUT / "fundamentals.json"
-VERSION = 2
+VERSION = 3
 
 REV = ["totalrevenue", "operatingrevenue"]
 NI = ["netincome", "netincomecommonstockholders"]
@@ -87,11 +87,60 @@ def get_stmt(t, freq):
         return t.quarterly_income_stmt if freq == "quarterly" else t.income_stmt
 
 
-def snapshot(t):
+def get_info(t):
     try:
-        info = t.info or {}
+        return t.info or {}
     except Exception:
-        info = {}
+        return {}
+
+
+def txt(x):
+    return x.strip() if isinstance(x, str) and x.strip() else None
+
+
+def analyst(t, info):
+    """Target harga dan rekomendasi analis dari Yahoo Finance, termasuk riwayat per sekuritas kalau ada."""
+    out = {
+        "recommendation": txt(info.get("recommendationKey")),
+        "rating": num(info.get("recommendationMean")),
+        "analysts": info.get("numberOfAnalystOpinions"),
+        "target_mean": num(info.get("targetMeanPrice")), "target_median": num(info.get("targetMedianPrice")),
+        "target_high": num(info.get("targetHighPrice")), "target_low": num(info.get("targetLowPrice")),
+        "trend": [], "history": [],
+    }
+    try:
+        apt = t.analyst_price_targets or {}
+        for k in ("mean", "median", "high", "low"):
+            if out[f"target_{k}"] is None:
+                out[f"target_{k}"] = num(apt.get(k))
+    except Exception:
+        pass
+    try:
+        rec = t.recommendations
+        if rec is not None and not rec.empty:
+            for _, r in rec.iterrows():
+                out["trend"].append({"period": str(r.get("period")), **{k: int(r.get(k) or 0) for k in
+                                     ("strongBuy", "buy", "hold", "sell", "strongSell")}})
+    except Exception:
+        pass
+    try:
+        ud = t.upgrades_downgrades
+        if ud is not None and not ud.empty:
+            for d, r in ud.sort_index(ascending=False).head(25).iterrows():
+                out["history"].append({
+                    "date": pd.Timestamp(d).strftime("%Y-%m-%d"),
+                    "firm": txt(r.get("Firm")), "to": txt(r.get("ToGrade")), "from": txt(r.get("FromGrade")),
+                    "action": txt(r.get("Action")),
+                    "target": num(r.get("currentPriceTarget")), "prior_target": num(r.get("priorPriceTarget")),
+                    "target_action": txt(r.get("priceTargetAction")),
+                })
+    except Exception:
+        pass
+    has = out["target_mean"] is not None or out["recommendation"] not in (None, "none") or out["history"] or out["trend"]
+    return out if has else None
+
+
+def snapshot(info):
     dy = info.get("trailingAnnualDividendYield")
     roe = info.get("returnOnEquity")
     return {
@@ -135,16 +184,20 @@ for sym in todo:
         t = yf.Ticker(f"{sym}.JK")
         q = build(get_stmt(t, "quarterly"), 1, 4, 8)
         a = build(get_stmt(t, "yearly"), None, 1, 4)
-        snap = snapshot(t)
+        info = get_info(t)
+        snap = snapshot(info)
+        an = analyst(t, info)
         if not q and not a and snap["pe"] is None and snap["mcap"] is None:
             print(f"kosong {sym}")
             stocks[sym] = {"fetched": now, "n_quarters": 0, "v": VERSION}
             continue
         (FD / f"{sym}.json").write_text(json.dumps(
-            {"symbol": sym, "fetched": now, "currency": snap["currency"], "quarters": q, "annual": a},
+            {"symbol": sym, "fetched": now, "currency": snap["currency"], "quarters": q, "annual": a, "analyst": an},
             separators=(",", ":")))
         last = q[-1] if q else {}
         stocks[sym] = {**snap, "rev_yoy": last.get("rev_yoy"), "ni_yoy": last.get("ni_yoy"),
+                       "target": an["target_mean"] if an else None, "analysts": an["analysts"] if an else None,
+                       "rec": an["recommendation"] if an else None,
                        "n_quarters": len(q), "fetched": now, "v": VERSION}
         span = f"{q[0]['date']} .. {q[-1]['date']}" if q else "-"
         print(f"ok   {sym}: {len(q)} kuartal ({span}), {len(a)} tahun")
