@@ -1,0 +1,24 @@
+name: jalankan-semua
+# Satu tombol untuk menjalankan beberapa workflow data sekaligus (dari HP atau web).
+on:
+  workflow_dispatch:
+    inputs:
+      bagian:
+        description: "Workflow yang dijalankan, pisahkan dengan spasi"
+        default: "makro harga fundamental kepemilikan brief flow"
+permissions:
+  actions: write
+  contents: read
+jobs:
+  jalankan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Picu workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BAGIAN: ${{ inputs.bagian }}
+        run: |
+          for w in $BAGIAN; do
+            gh workflow run "${w%.yml}.yml" --repo "$GITHUB_REPOSITORY" --ref main && echo "dijalankan: $w"
+          done
