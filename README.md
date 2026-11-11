@@ -35,6 +35,8 @@ Situs: https://rgt88.github.io/idx-lite/ (terminal) · https://rgt88.github.io/i
 
 Data hasil olahan tidak masuk riwayat git `main`. Setiap sumber punya workflow sendiri (`makro`, `harga`, `fundamental`, `kepemilikan`, `brief`, `foreign-broker`) yang menerbitkan bagiannya ke branch `gh-pages`; satu sumber error tidak menghambat yang lain.
 
+Operasional harian (jadwal, checkpoint, apa yang dilakukan kalau ada yang gagal): [RUNBOOK.md](RUNBOOK.md). Cek cepat: `python scripts/cek_status.py --runs`.
+
 Penjelasan lengkap, termasuk plan B **mode laptop** (`scripts/update_lokal.sh`) dan cara memperbarui daftar HSC: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Kerja lokal
