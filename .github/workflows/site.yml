@@ -5,7 +5,7 @@ on:
     branches: [main]
   schedule:
     - cron: "0 1,3,5,7 * * 1-5"    # makro saja: 08, 10, 12, 14 WIB
-    - cron: "30 9 * * 1-5"         # makro + harga + fundamental: 16:30 WIB
+    - cron: "30 9 * * 1-5"         # makro + harga + fundamental + kepemilikan + brief: 16:30 WIB
     - cron: "30 12 * * 1-5"        # makro + harga (ulang) + foreign flow + broker summary: 19:30 WIB
   workflow_dispatch:
     inputs:
@@ -24,7 +24,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -73,21 +73,7 @@ jobs:
             echo "Lewati update fundamental pada run ini"
           fi
 
-      - name: Tentukan perlu ambil foreign & broker
-        id: flow
-        env:
-          SCHED: ${{ github.event.schedule }}
-          EVENT: ${{ github.event_name }}
-          FLOW_INPUT: ${{ inputs.flow }}
-        run: |
-          if [ "$SCHED" = "30 12 * * 1-5" ] || { [ "$EVENT" = "workflow_dispatch" ] && [ "$FLOW_INPUT" = "true" ]; }; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Cache respons idx
-        if: steps.flow.outputs.run == 'true'
+      - name: Cache respons dan database idx
         uses: actions/cache@v4
         with:
           path: .idx-cache
@@ -95,14 +81,42 @@ jobs:
           restore-keys: idx-cache-
 
       - name: Pasang CLI idx
-        if: steps.flow.outputs.run == 'true'
         continue-on-error: true
         run: |
           curl -fsSL https://raw.githubusercontent.com/fzn0x/idx/main/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Tentukan langkah idx
+        id: plan
+        env:
+          SCHED: ${{ github.event.schedule }}
+          EVENT: ${{ github.event_name }}
+          FLOW_INPUT: ${{ inputs.flow }}
+        run: |
+          daily=false; flow=false
+          if [ "$SCHED" = "30 9 * * 1-5" ] || [ "$EVENT" = "workflow_dispatch" ]; then daily=true; fi
+          if [ "$SCHED" = "30 12 * * 1-5" ] || { [ "$EVENT" = "workflow_dispatch" ] && [ "$FLOW_INPUT" = "true" ]; }; then flow=true; fi
+          echo "daily=$daily" >> "$GITHUB_OUTPUT"
+          echo "flow=$flow" >> "$GITHUB_OUTPUT"
+
+      - name: Update kepemilikan KSEI (> 1%)
+        if: steps.plan.outputs.daily == 'true'
+        continue-on-error: true
+        env:
+          IDX_CACHE_DIR: ${{ github.workspace }}/.idx-cache
+          IDX_OWNERSHIP_DB: ${{ github.workspace }}/.idx-cache/ownership.sqlite
+        run: python scripts/fetch_ownership.py
+
+      - name: Update brief (bertahap)
+        if: steps.plan.outputs.daily == 'true'
+        continue-on-error: true
+        env:
+          IDX_CACHE_DIR: ${{ github.workspace }}/.idx-cache
+          IDX_OWNERSHIP_DB: ${{ github.workspace }}/.idx-cache/ownership.sqlite
+        run: python scripts/fetch_brief.py --max 100
+
       - name: Update foreign flow & broker summary
-        if: steps.flow.outputs.run == 'true'
+        if: steps.plan.outputs.flow == 'true'
         continue-on-error: true
         env:
           IDX_CACHE_DIR: ${{ github.workspace }}/.idx-cache

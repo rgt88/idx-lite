@@ -81,6 +81,10 @@ step() {  # step <nama> <perintah...>
 if [ "$want_macro" = 1 ]; then step makro sh -c "python scripts/macro_update.py >/dev/null" || true; fi
 if [ "$want_harga" = 1 ]; then
   step harga python scripts/fetch_prices.py && step fundamental python scripts/fetch_fundamentals.py --max 100 && mark harga || true
+  if command -v idx >/dev/null; then
+    step kepemilikan python scripts/fetch_ownership.py || true
+    step brief python scripts/fetch_brief.py --max 100 || true
+  fi
 fi
 if [ "$want_flow" = 1 ]; then
   if command -v idx >/dev/null; then

@@ -2,8 +2,8 @@
 "use strict";
 
 const TABS = [
-  ["ringkasan", "Ringkasan", "quote"], ["teknikal", "Teknikal", "technical"], ["fundamental", "Fundamental", "fundamental"],
-  ["broker", "Broker", "broker"], ["foreign", "Foreign", "foreign"], ["bandar", "Bandar", "bandar"],
+  ["ringkasan", "Ringkasan", "brief"], ["teknikal", "Teknikal", "technical"], ["fundamental", "Fundamental", "fundamental"],
+  ["kepemilikan", "Kepemilikan", "ownership"], ["broker", "Broker", "broker"], ["foreign", "Foreign", "foreign"], ["bandar", "Bandar", "bandar"],
 ];
 const PAGES = {
   pasar: { title: "Pasar hari ini", desc: "Indikator makro, saham naik dan turun terbanyak, yang paling aktif, aliran dana asing, dan broker teratas.", cmd: "market" },
@@ -11,11 +11,12 @@ const PAGES = {
   broker: { title: "Broker", desc: "Ranking broker seluruh pasar pada sesi terakhir. Ketuk kode broker untuk melihat saham yang ia beli dan jual.", cmd: "brokers" },
   bandar: { title: "Bandarmology", desc: "Apakah broker terbesar sedang mengumpulkan (akumulasi) atau melepas (distribusi) saham? Dihitung untuk 100 saham paling aktif.", cmd: "bandar screen" },
   screener: { title: "Screener", desc: "Cari saham dengan kriteria harga, teknikal dan fundamental.", cmd: null },
+  kepemilikan: { title: "Kepemilikan", desc: "Pemegang saham di atas 1% dari register KSEI bulanan: siapa yang masuk, keluar, menambah dan mengurangi.", cmd: "ownership" },
   hsc: { title: "Saham HSC", desc: "Saham dengan kepemilikan sangat terkonsentrasi menurut BEI. Free float-nya kecil, jadi harganya mudah bergerak tajam.", cmd: "hsc" },
   x: { title: "Hasil", desc: "", cmd: null },
 };
-const TAB_OF = { quote: "ringkasan", technical: "teknikal", fundamental: "fundamental", broker: "broker", foreign: "foreign", bandar: "bandar" };
-const PAGE_OF = { market: "pasar", macro: "pasar", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc" };
+const TAB_OF = { quote: "ringkasan", brief: "ringkasan", technical: "teknikal", fundamental: "fundamental", ownership: "kepemilikan", broker: "broker", foreign: "foreign", bandar: "bandar" };
+const PAGE_OF = { market: "pasar", macro: "pasar", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc", ownership: "kepemilikan" };
 
 const view = $("#view");
 

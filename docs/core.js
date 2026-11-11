@@ -674,6 +674,124 @@ def("hsc", "hsc [--new] [--sort pct|value|chg]", "Daftar saham Kepemilikan Saham
     <p class="note">Diperbarui manual dari PDF pengumuman BEI/KSEI (scripts/hsc_update.py). Masuk daftar HSC tidak berarti ada pelanggaran; cocokkan dengan menu Kepemilikan Saham Terkonsentrasi Tinggi di idx.co.id.</p>`;
 });
 
+/* ---------- kepemilikan (KSEI > 1%) ---------- */
+const INVESTOR = {
+  CORPORATE: "Korporasi", INDIVIDUAL: "Individu", "MUTUAL FUND": "Reksa dana", INSURANCE: "Asuransi", "PENSION FUND": "Dana pensiun",
+  "FINANCIAL INSTITUTION": "Lembaga keuangan", "SECURITIES COMPANY": "Perusahaan efek", FOUNDATION: "Yayasan", OTHERS: "Lainnya",
+};
+const invType = (t) => esc(INVESTOR[String(t || "").toUpperCase()] || (t ? String(t).toLowerCase() : "–"));
+const lf = (x) => (x === "A" ? `<span class="k-foreign">Asing</span>` : x === "L" ? `<span class="k-local">Lokal</span>` : "–");
+const CHG = { new: ["baru", "up"], exited: ["keluar", "down"] };
+const chgKind = (c) => (CHG[c.kind] ? `<span class="${CHG[c.kind][1]}">${CHG[c.kind][0]}</span>` : c.pct_change > 0 ? `<span class="up">naik</span>` : `<span class="down">turun</span>`);
+const pp = (v) => (isNum(v) ? `<span class="${cls(v)}">${v > 0 ? "+" : ""}${nf(v, 2)} pp</span>` : "–");
+const ownMissing = () => `<div class="empty"><b>Data kepemilikan belum tersedia.</b><p>Register pemegang saham di atas 1% diambil setiap hari bursa pukul 16:30 WIB dari mirror register KSEI milik proyek idx.</p></div>`;
+
+def("ownership", "ownership [BBCA]", "Pemegang saham di atas 1% (register KSEI bulanan) dan perubahannya dibanding bulan sebelumnya.", async (a) => {
+  const meta = await getJSON("ownership/meta.json", true);
+  if (!a.pos[0]) {
+    if (!meta?.as_of) return ownMissing();
+    const s = meta.summary;
+    const briefCols = [{ h: "Kode", f: (r) => symLink(r.symbol) }, { h: "Pemegang", f: (r) => esc(r.holder) }, { h: "Status", f: chgKind },
+      { h: "Dari", n: 1, f: (r) => (isNum(r.pct_from) ? nf(r.pct_from, 2) + "%" : "–") }, { h: "Ke", n: 1, f: (r) => (isNum(r.pct_to) ? nf(r.pct_to, 2) + "%" : "–") }, { h: "Perubahan", n: 1, f: (r) => pp(r.pct_change) }];
+    return `
+      <p class="muted">Register per ${tgl(meta.as_of)}${meta.prev ? `, dibandingkan dengan ${tgl(meta.prev)}` : ""}.</p>
+      ${s ? `<div class="cards">${card("Pemegang baru", nf(s.new_holders))}${card("Keluar", nf(s.exits))}${card("Menambah", `<span class="up">${nf(s.increased)}</span>`)}${card("Mengurangi", `<span class="down">${nf(s.decreased)}</span>`)}${card("Net asing", pp(s.foreign_net_pp))}${card("Net lokal", pp(s.local_net_pp))}</div>
+      <div class="grid wide">
+        <div><h3>Kenaikan terbesar</h3>${table(briefCols, (s.top_increases || []).slice(0, 15))}</div>
+        <div><h3>Penurunan terbesar</h3>${table(briefCols, (s.top_decreases || []).slice(0, 15))}</div>
+        <div><h3>Per jenis investor</h3>${table([{ h: "Jenis", f: (r) => invType(r.investor_type) }, { h: "Baris", n: 1, f: (r) => nf(r.rows) }, { h: "Net", n: 1, f: (r) => pp(r.net_pp) }], s.by_investor_type || [])}</div>
+      </div>` : `<p class="muted">Ringkasan perubahan belum tersedia.</p>`}
+      <p class="note">Sumber: register "Pemegang Saham di Atas 1%" KSEI yang diterbitkan BEI tiap bulan, lewat mirror proyek idx. pp = poin persentase kepemilikan. Pemegang di bawah 1% tidak dipublikasikan.</p>`;
+  }
+  const sym = symArg(a);
+  const d = await getJSON(`ownership/t/${sym}.json`, true);
+  if (!d) return meta?.as_of ? `<div class="empty"><b>${esc(sym)} tidak ada di register ${tgl(meta.as_of)}.</b><p>Saham ini tidak punya pemegang di atas 1% yang tercatat, atau belum tercatat saat register dibuat.</p></div>` : ownMissing();
+  return `
+    ${kv([["Register", tgl(d.as_of)], ["Pemegang > 1%", nf(d.holders.length)], ["Total dikuasai", nf(d.listed_pct, 2) + "%"], ["Porsi asing", nf(d.foreign_pct, 2) + "%"],
+          ["Pengendali & afiliasi", isNum(d.controller_pct) ? nf(d.controller_pct, 2) + "%" : "–"], ["Sisa (≤ 1% / publik)", isNum(d.listed_pct) ? nf(100 - d.listed_pct, 2) + "%" : "–"]])}
+    <h3>Pemegang saham</h3>
+    ${table([{ h: "Pemegang", f: (h) => esc(h.holder) + (h.controller_or_affiliate ? ` <span class="tag" title="${esc(h.controller_or_affiliate)}">${/AFFILIATE/.test(h.controller_or_affiliate) ? "afiliasi" : "pengendali"}</span>` : "") },
+             { h: "Jenis", f: (h) => invType(h.investor_type) }, { h: "Asal", f: (h) => lf(h.local_foreign) },
+             { h: "%", n: 1, f: (h) => nf(h.pct, 2) }, { h: "Lembar", n: 1, f: (h) => big(h.shares_total) }], d.holders)}
+    <h3>Perubahan sejak ${tgl(d.prev)}</h3>
+    ${table([{ h: "Pemegang", f: (c) => esc(c.holder) }, { h: "Status", f: chgKind }, { h: "Asal", f: (c) => lf(c.local_foreign) },
+             { h: "Dari", n: 1, f: (c) => (isNum(c.pct_from) ? nf(c.pct_from, 2) + "%" : "–") }, { h: "Ke", n: 1, f: (c) => (isNum(c.pct_to) ? nf(c.pct_to, 2) + "%" : "–") },
+             { h: "Perubahan", n: 1, f: (c) => pp(c.pct_change) }, { h: "Lembar", n: 1, f: (c) => sgn(c.shares_change) }], d.changes || [], "Tidak ada perubahan pemegang di atas 1%.")}
+    <p class="note">Register KSEI "Pemegang Saham di Atas 1%" per ${tgl(d.as_of)}. Satu pemegang dengan beberapa rekening dijumlahkan. Pengendali dan afiliasi ditandai sesuai register (tersedia sejak 30 Okt 2026).</p>`;
+}, ["own", "kepemilikan"]);
+
+/* ---------- brief satu halaman ---------- */
+const VERDICT = { undervalued: ["tergolong murah", "up"], fair: ["tergolong wajar", ""], overvalued: ["tergolong mahal", "down"], insufficient_data: ["belum bisa dinilai (data kurang)", ""] };
+const TREND = { uptrend: ["naik", "up"], downtrend: ["turun", "down"], sideways: ["mendatar", ""], unknown: ["belum jelas", ""] };
+const SIGNAL = { buy: ["condong positif", "up"], sell: ["condong negatif", "down"], neutral: ["netral", ""] };
+const SENT = { positive: ["positif", "up"], negative: ["negatif", "down"], neutral: ["netral", ""], no_coverage: ["tidak ada berita", ""] };
+const word = (map, k) => { const w = map[k]; return w ? `<b class="${w[1]}">${w[0]}</b>` : esc(k || "–"); };
+
+def("brief", "brief BBCA", "Satu halaman: poin penting, valuasi, teknikal, return vs IHSG, dividen, pemegang saham, berita, dan grafik.", async (a, body) => {
+  const sym = symArg(a);
+  const s = await stock(sym);
+  const [b, own, fi, rows] = await Promise.all([getJSON(`brief/${sym}.json`, true), getJSON(`ownership/t/${sym}.json`, true), fundIndex(), prices(sym)]);
+  const d = b?.data || null, f = fi[sym] || {}, fu = d?.fundamentals || {};
+  const pts = [];
+  pts.push(`Harga terakhir <b>${nf(s.price)}</b> (${pct(s.change_pct)}) pada ${tgl(s.date)}, nilai transaksi ${big(s.value)}.`);
+
+  const R = d?.returns?.returns, X = d?.returns?.benchmark?.excess;
+  if (R) {
+    pts.push(`Return 1 bulan ${pct(R.m1, 1)}, sejak awal tahun ${pct(R.ytd, 1)}, setahun ${pct(R.y1, 1)}` +
+      (X && isNum(X.y1) ? `; ${X.y1 >= 0 ? "lebih baik" : "lebih buruk"} <b>${nf(Math.abs(X.y1), 1)} poin</b> dibanding IHSG dalam setahun.` : "."));
+  } else if (rows?.length > 22) {
+    const c = rows.map((r) => r[4]), n = c.length - 1;
+    pts.push(`Return 1 bulan ${pct((c[n] / c[n - 21] - 1) * 100, 1)}, sekitar setahun ${pct((c[n] / c[0] - 1) * 100, 1)}.`);
+  }
+
+  const pe = f.pe ?? fu.valuation?.pe_trailing, pb = f.pb ?? fu.valuation?.price_to_book, roe = f.roe ?? fu.profitability?.roe_pct;
+  const v = fu.verdict;
+  if (v || isNum(pe) || isNum(pb)) {
+    pts.push(`${v ? `Menurut aturan valuasi idx, saham ini ${word(VERDICT, v.label)} (skor ${v.score}). ` : ""}P/E ${nf(pe, 1)}, P/B ${nf(pb, 2)}, ROE ${isNum(roe) ? nf(roe, 1) + "%" : "–"}.`);
+  }
+
+  const t = d?.technical;
+  if (t?.signal) pts.push(`Tren harga ${word(TREND, t.trend)}; sinyal teknikal ${word(SIGNAL, t.signal.label)} (skor ${t.signal.score}).`);
+  else if (rows?.length > 30) {
+    const sig = signals(indicators(rows)), bull = sig.filter((x) => x[1] === "bull").length, bear = sig.filter((x) => x[1] === "bear").length;
+    pts.push(`Indikator teknikal: ${bull} positif, ${bear} negatif${bull - bear >= 2 ? " (condong naik)" : bear - bull >= 2 ? " (condong turun)" : ""}.`);
+  }
+
+  const dv = d?.dividends;
+  if (dv) pts.push(isNum(dv.ttm_yield_pct) && dv.ttm_total
+    ? `Dividen 12 bulan terakhir Rp ${nf(dv.ttm_total, 2)} per saham (yield <b>${nf(dv.ttm_yield_pct, 2)}%</b>)${dv.consecutive_years ? `, dibagikan ${dv.consecutive_years} tahun berturut-turut` : ""}${dv.last ? `; terakhir ${tgl(dv.last.date)}` : ""}.`
+    : `Tidak ada dividen dalam 12 bulan terakhir.`);
+  else if (isNum(f.div_yield)) pts.push(`Dividend yield ${nf(f.div_yield, 2)}%.`);
+
+  if (own?.holders?.length) {
+    const top = own.holders[0];
+    pts.push(`${own.holders.length} pemegang di atas 1% menguasai <b>${nf(own.listed_pct, 1)}%</b> saham (asing ${nf(own.foreign_pct, 1)}%). Terbesar: ${esc(top.holder)} ${nf(top.pct, 2)}%.`);
+  }
+  if (HSC_SET.has(sym)) pts.push(`<span class="down">Masuk daftar <b>HSC</b> BEI: kepemilikan sangat terkonsentrasi, tidak dihitung dalam IHSG.</span>`);
+
+  const nw = d?.news;
+  if (nw) pts.push(nw.company_matches ? `${nw.company_matches} berita terbaru menyebut perusahaan ini; nadanya ${word(SENT, nw.sentiment)}.` : "Belum ada berita terbaru yang menyebut perusahaan ini.");
+
+  const sector = [fu.sector, fu.industry].filter(Boolean).map(esc).join(" · ");
+  const reasons = (title, list) => (list?.length ? `<details><summary>${title}</summary><ul>${list.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></details>` : "");
+  body.innerHTML = `
+    ${d?.name || sector ? `<p class="muted">${esc(d?.name || NAMES[sym] || "")}${sector ? ` · ${sector}` : ""}</p>` : ""}
+    <h3>Poin penting</h3>
+    <ul class="points">${pts.map((p) => `<li>${p}</li>`).join("")}</ul>
+    <div class="reasons">
+      ${reasons("Alasan penilaian valuasi (dari idx, bahasa Inggris)", v?.reasons)}
+      ${reasons("Alasan sinyal teknikal (dari idx, bahasa Inggris)", t?.signal?.reasons)}
+      ${reasons("Poin asli dari idx (bahasa Inggris)", d?.key_points)}
+    </div>
+    ${own?.holders?.length ? `<h3>Pemegang saham terbesar</h3>${table([{ h: "Pemegang", f: (h) => esc(h.holder) }, { h: "Asal", f: (h) => lf(h.local_foreign) }, { h: "%", n: 1, f: (h) => nf(h.pct, 2) }], own.holders.slice(0, 5))}
+      <div class="btns">${cmdBtn(`ownership ${sym}`, "semua pemegang & perubahannya")}</div>` : ""}
+    ${nw?.headlines?.length ? `<h3>Berita terbaru</h3><ul class="news">${nw.headlines.map((h) => `<li><a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.title)}</a><span class="muted"> · ${esc(h.source || "")}${h.published ? ` · ${wib(h.published)}` : ""}</span></li>`).join("")}</ul>` : ""}
+    <h3>Harga</h3>
+    <div class="brief-quote"></div>
+    <p class="note">${b ? `Brief disusun ${wib(b.fetched_at)} dari <code>idx stocks brief</code>${(d?.sections_failed || []).length ? `; bagian yang gagal diambil: ${esc(d.sections_failed.join(", "))}` : ""}.` : "Brief lengkap untuk saham ini belum dibuat (diambil bergilir, 100 saham per hari, yang paling aktif dulu); poin di atas disusun dari data yang sudah ada."} Penilaian valuasi dan sinyal adalah aturan sederhana, bukan saran investasi.</p>`;
+  await COMMANDS.quote.fn({ pos: [sym], flags: {} }, $(".brief-quote", body));
+}, ["b", "ringkasan"]);
+
 def("history", "history", "Perintah yang pernah dijalankan di peramban ini.", async () => {
   const h = loadHist();
   return h.length ? `<div class="btns">${h.slice().reverse().map((c) => cmdBtn(c)).join("")}</div>` : `<p class="muted">Belum ada riwayat.</p>`;
@@ -700,7 +818,7 @@ function resolve(tokens) {
   if (/^[a-z0-9]{4}(\.jk)?$/i.test(first)) return [COMMANDS.quote, tokens];
   return [null, tokens];
 }
-const FLAG_CMDS = () => new Set(["quote", "technical", "fundamental", "broker", "foreign", "bandar"].map((n) => COMMANDS[n]));
+const FLAG_CMDS = () => new Set(["quote", "brief", "technical", "fundamental", "ownership", "broker", "foreign", "bandar"].map((n) => COMMANDS[n]));
 /* riwayat */
 const HKEY = "idx-lite-history";
 const loadHist = () => { try { return JSON.parse(localStorage.getItem(HKEY) || "[]"); } catch (e) { return []; } };

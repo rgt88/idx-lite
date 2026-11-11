@@ -8,7 +8,9 @@ Situs: https://rgt88.github.io/idx-lite/ (terminal) · https://rgt88.github.io/i
 
 | Perintah | Isi |
 | --- | --- |
+| `brief BBCA` | Ringkasan satu halaman: poin penting, valuasi, return vs IHSG, dividen, pemegang saham, berita, grafik |
 | `BBCA` / `quote BBCA` | Harga, grafik candlestick, SMA, sinyal singkat |
+| `ownership` / `ownership BBCA` | Pemegang saham > 1% (register KSEI) dan perubahannya |
 | `technical BBCA` | RSI, MACD, SMA/EMA, Bollinger, ATR, support/resistance |
 | `fundamental BBCA` | Valuasi, kinerja kuartalan dan tahunan |
 | `broker BBCA` | Broker summary sesi terakhir (10 pembeli/penjual teratas) |

@@ -65,6 +65,9 @@ flowchart LR
 | Harga | `scripts/fetch_prices.py` | Candle harian 1 tahun semua saham di `symbols.txt` → `prices/`, `summary.json` |
 | Fundamental | `scripts/fetch_fundamentals.py` | Valuasi, laporan kuartalan dan tahunan, 100 saham per run (bergilir) → `fundamentals/`, `fundamentals.json` |
 | Foreign & broker | `scripts/fetch_flow.py` | Memanggil CLI [`idx`](https://github.com/fzn0x/idx) → `flow/` |
+| Kepemilikan | `scripts/fetch_ownership.py` | Register KSEI pemegang > 1% lewat `idx ownership sync` (mirror GitHub) → `ownership/` |
+| Brief | `scripts/fetch_brief.py` | `idx stocks brief` per saham, 100 saham per run bergilir → `brief/`, `brief_index.json` |
+| Pembantu | `scripts/idxcli.py` | Menjalankan `idx -o json` dan menyimpan JSON, dipakai skrip kepemilikan dan brief |
 | HSC | `scripts/hsc_update.py` | Memperbarui daftar Kepemilikan Saham Terkonsentrasi Tinggi → `hsc.json` |
 | Isian manual | `docs/data/manual.json` | Cadangan CDS/yield kalau scraper gagal |
 | Workflow | `.github/workflows/site.yml` | Jadwal, urutan langkah, terbit ke `gh-pages` |
@@ -75,8 +78,8 @@ flowchart LR
 | Waktu | Langkah | Alasan |
 | --- | --- | --- |
 | 08:00, 10:00, 12:00, 14:00 | makro | Murah, berubah sepanjang hari |
-| 16:30 | makro, harga, fundamental | Bursa tutup 16:15; candle harian sudah final |
-| 19:30 | makro, foreign & broker | IPOT baru menerbitkan broker summary setelah tutup, dan ranking broker serta statistik pasar baru bisa diberi tanggal setelah 19:00 |
+| 16:30 | makro, harga, fundamental, kepemilikan, brief | Bursa tutup 16:15; candle harian sudah final. Kepemilikan hanya ditulis ulang saat register bulanan baru terbit |
+| 19:30 | makro, harga (ulang), foreign & broker | IPOT baru menerbitkan broker summary setelah tutup, dan ranking broker serta statistik pasar baru bisa diberi tanggal setelah 19:00 |
 | setiap push ke `main` | makro, terbit ulang | Perubahan tampilan langsung tayang |
 | manual (`gh workflow run build-and-deploy`) | semua langkah | Mengisi data kapan saja |
 
@@ -108,6 +111,11 @@ Respons CLI `idx` disimpan di cache Actions (`.idx-cache`), sehingga riwayat for
 | `flow/foreign/KODE.json` | Riwayat foreign harian 20 sesi (`idx.foreign.value.v1`) | fetch_flow |
 | `flow/foreign_hist.json` | Arsip harian net asing, bertambah tiap hari (maks 120 sesi) | fetch_flow |
 | `flow/meta.json` | Waktu dan status tiap langkah foreign/broker | fetch_flow |
+| `ownership/meta.json` | Tanggal register, pembanding, ringkasan perubahan seluruh pasar | fetch_ownership |
+| `ownership/index.json` | Per saham: jumlah pemegang > 1%, total %, porsi asing, pemegang terbesar | fetch_ownership |
+| `ownership/t/KODE.json` | Daftar pemegang dan perubahannya sejak register sebelumnya | fetch_ownership |
+| `brief/KODE.json` | Isi `idx stocks brief` (`idx.brief.v1`) | fetch_brief |
+| `brief_index.json` | Kapan brief tiap saham terakhir diambil | fetch_brief |
 | `manual.json` | Isian manual CDS/yield | manusia |
 | `hsc.json` | Daftar HSC + tanggal publikasi + sumber | hsc_update / manusia |
 
