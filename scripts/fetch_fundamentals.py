@@ -13,6 +13,7 @@ OUT = ROOT / "docs" / "data"
 FD = OUT / "fundamentals"
 FD.mkdir(parents=True, exist_ok=True)
 SUMMARY = OUT / "fundamentals.json"
+VERSION = 2
 
 REV = ["totalrevenue", "operatingrevenue"]
 NI = ["netincome", "netincomecommonstockholders"]
@@ -51,20 +52,31 @@ def build(df, step_prev, step_yoy, keep):
     if df is None or df.empty:
         return []
     rev, ni, eps = pick(df, REV), pick(df, NI), pick(df, EPS)
-    rows = []
-    for c in sorted(df.columns):  # lama -> baru
-        rows.append({
-            "date": pd.Timestamp(c).strftime("%Y-%m-%d"),
+    data = {}
+    for c in df.columns:
+        ts = pd.Timestamp(c)
+        key = ts.to_period("Q") if step_prev else ts
+        data[key] = {
+            "date": ts.strftime("%Y-%m-%d"),
             "revenue": num(rev[c], 0) if rev is not None else None,
             "net_income": num(ni[c], 0) if ni is not None else None,
             "eps": num(eps[c], 2) if eps is not None else None,
-        })
+        }
+    if step_prev and data:
+        for per in pd.period_range(min(data), max(data), freq="Q"):
+            data.setdefault(per, {"date": per.end_time.strftime("%Y-%m-%d"),
+                                  "revenue": None, "net_income": None, "eps": None})
+    rows = [data[k] for k in sorted(data)]
     for i, r in enumerate(rows):
         for key, short in (("revenue", "rev"), ("net_income", "ni")):
             if step_prev and i >= step_prev:
                 r[f"{short}_qoq"] = growth(r[key], rows[i - step_prev][key])
             if step_yoy and i >= step_yoy:
                 r[f"{short}_yoy"] = growth(r[key], rows[i - step_yoy][key])
+    while rows and rows[0]["revenue"] is None and rows[0]["net_income"] is None:
+        rows.pop(0)
+    while rows and rows[-1]["revenue"] is None and rows[-1]["net_income"] is None:
+        rows.pop()
     return rows[-keep:]
 
 
@@ -110,8 +122,10 @@ if args.symbols:
     todo = [s.upper() for s in args.symbols]
 else:
     def staleness(s):
-        f = stocks.get(s, {}).get("fetched")
-        return (0, "") if not f else (1, f)   # belum pernah diambil dulu, lalu yang paling lama
+        e = stocks.get(s, {})
+        if not e.get("fetched") or e.get("v") != VERSION:
+            return (0, "")
+        return (1, e["fetched"])   # belum pernah diambil dulu, lalu yang paling lama
     todo = sorted(universe(), key=staleness)[: args.max]
 
 now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -124,14 +138,14 @@ for sym in todo:
         snap = snapshot(t)
         if not q and not a and snap["pe"] is None and snap["mcap"] is None:
             print(f"kosong {sym}")
-            stocks[sym] = {"fetched": now, "n_quarters": 0}
+            stocks[sym] = {"fetched": now, "n_quarters": 0, "v": VERSION}
             continue
         (FD / f"{sym}.json").write_text(json.dumps(
             {"symbol": sym, "fetched": now, "currency": snap["currency"], "quarters": q, "annual": a},
             separators=(",", ":")))
         last = q[-1] if q else {}
         stocks[sym] = {**snap, "rev_yoy": last.get("rev_yoy"), "ni_yoy": last.get("ni_yoy"),
-                       "n_quarters": len(q), "fetched": now}
+                       "n_quarters": len(q), "fetched": now, "v": VERSION}
         span = f"{q[0]['date']} .. {q[-1]['date']}" if q else "-"
         print(f"ok   {sym}: {len(q)} kuartal ({span}), {len(a)} tahun")
         if args.symbols:
