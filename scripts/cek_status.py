@@ -176,7 +176,7 @@ for name, state, detail in rows:
 
 if args.runs:
     print("\nRun terakhir tiap workflow:")
-    for wf in ("makro", "harga", "fundamental", "sinyal", "kepemilikan", "brief", "flow", "ai", "site"):
+    for wf in ("pengatur", "makro", "harga", "fundamental", "sinyal", "kepemilikan", "brief", "flow", "ai", "site", "uji"):
         try:
             out = subprocess.run(["gh", "run", "list", "--workflow", f"{wf}.yml", "--limit", "1", "--json",
                                   "status,conclusion,createdAt,event,databaseId"], capture_output=True, text=True, timeout=30)

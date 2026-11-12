@@ -207,6 +207,14 @@ Dari lampiran PDF, skrip membaca nomor pengumuman, tanggal pengumuman, tanggal e
 
 Push ke `main` langsung menerbitkan ulang situs. Skrip mencetak saham yang masuk dan keluar dibanding daftar sebelumnya, jadi hasilnya bisa dicek sebelum push. Hitungan hari bursa efektif tidak memperhitungkan hari libur bursa; cocokkan dengan teks pengumuman.
 
+## Pengatur jadwal, alarm, dan uji
+
+Jadwal `schedule` GitHub bersifat *best effort*: pada repo kita banyak jadwal yang tidak pernah terpicu. Karena itu:
+
+- **`pengatur`** (`scripts/pengatur.py`) jalan setiap ±20 menit (jadwal GitHub di menit 07/27/47, ditambah pemicu luar cron-job.org lewat `workflow_dispatch`). Ia melihat jam WIB, riwayat run hari ini, dan data di `gh-pages`, lalu memicu bagian yang sudah waktunya tetapi belum sukses hari ini. Aturannya: makro tiap ±2 jam (07:30–21:30); laporan sesi 1 12:10–13:25 (Jumat 11:40–13:55); harga mulai 16:25, diulang tiap 60 menit (maks 4×) selama sesi hari ini belum tayang; fundamental 16:45, kepemilikan 17:00, brief 17:15 (sekali sehari, maks 2 percobaan); sinyal kalau tertinggal dari harga; laporan penutupan setelah harga hari ini tayang (paling lambat 18:30); foreign-broker 19:30. Yang sedang jalan atau sudah terlalu sering dicoba dilewati, jadi aman dipicu berkali-kali. Jadwal lama di tiap workflow tetap ada sebagai cadangan; laporan AI tidak dikirim dua kali untuk hari dan jenis yang sama.
+- **`alarm`** mengirim pesan Telegram setiap workflow data selesai dengan status gagal, lengkap dengan tautan log.
+- **`uji`** jalan setiap push: cek sintaks Python/JS/YAML lalu menjalankan `build_signals.py` dan `pengatur.py --dry-run` dengan data yang sedang tayang (hasil tidak diterbitkan). Kalau merah, alarm berbunyi sebelum jadwal sore memakai kode yang rusak.
+
 ## Time to buy (watchlist sinyal beli)
 
 `scripts/build_signals.py` menilai setiap saham likuid (rata-rata nilai 20 hari ≥ Rp1 M, harga ≥ Rp50; saham HSC yang likuid ikut dinilai dengan peringatan) dari tiga sudut pandang, masing-masing skor 0–100:

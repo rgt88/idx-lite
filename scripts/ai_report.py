@@ -330,6 +330,11 @@ def send_telegram(text):
 
 
 def main():
+    # Jangan kirim dua kali: pengatur dan jadwal bisa sama-sama memicu laporan yang sama.
+    done = {r["id"] for r in (load(OUT / "index.json", {"reports": []}) or {"reports": []}).get("reports", [])}
+    if f"{TODAY}-{args.kind}" in done and not args.force:
+        print(f"Laporan {TODAY}-{args.kind} sudah ada; tidak dibuat ulang (pakai --force untuk mengirim ulang).")
+        return
     facts = build()
     prompt = ("Data pasar " + ("sesi 1" if args.kind == "sesi1" else "penutupan") + f" hari ini ({TODAY}):\n"
               + json.dumps(facts, ensure_ascii=False, default=str)

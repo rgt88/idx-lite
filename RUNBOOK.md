@@ -48,7 +48,7 @@ Dari HP: buka situs, lihat baris *Diperbarui* di bagian bawah, atau buka tab **A
 | 19:00 | makro | | |
 | 19:30 | harga (ulang), foreign-broker | **CP4 · 20:15** | harga = sesi hari ini; foreign-broker OK atau SUMBER ERROR dengan alasan |
 
-Jadwal GitHub bisa telat sampai sekitar satu jam. Sebelum menganggap ada masalah, tunggu sampai jam checkpoint.
+Jam di tabel adalah jam paling awal. Yang memastikan semuanya jalan adalah workflow **pengatur** (tiap ±20 menit): ia memicu bagian yang sudah waktunya tapi belum sukses hari ini, dan mengulang harga sampai sesi hari ini masuk. Kalau ada workflow merah, **alarm** mengirim pesan ke Telegram. Jadi cek harian cukup: laporan Sesi 1 dan Penutupan masuk Telegram, dan tidak ada pesan ⚠️.
 
 ## Checklist harian
 
@@ -130,6 +130,10 @@ Uji tanpa mengirim Telegram: `python scripts/ai_report.py full --no-send --force
 2. `gh run list --workflow pages-build-deployment --limit 3` → harus hijau.
 3. Settings → Pages di GitHub: sumber tetap branch `gh-pages`, folder `/ (root)`.
 4. Kalau GitHub Pages sendiri bermasalah, cek https://www.githubstatus.com.
+
+### Pengatur tidak jalan
+
+`gh run list --workflow pengatur.yml --limit 5`. Kalau tidak ada run dalam 1 jam terakhir di jam bursa, cek job di cron-job.org (status terakhir harus HTTP 204). HTTP 401/403 berarti token GitHub di cron-job.org kedaluwarsa atau salah: buat token baru (Fine-grained, hanya repo idx-lite, izin *Actions: Read and write*) dan ganti di header job.
 
 ### Workflow tidak jalan sama sekali
 

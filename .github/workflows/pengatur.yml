@@ -1,0 +1,26 @@
+name: pengatur
+# Memastikan semua bagian data jalan tiap hari bursa walau jadwal GitHub terlewat.
+# Dipicu jadwal GitHub (menit ganjil, lebih jarang terlewat) DAN pemicu luar (cron-job.org -> workflow_dispatch).
+# Isinya ringan (±20 detik): melihat jam, riwayat run, dan data tayang, lalu memicu yang belum jalan.
+on:
+  schedule:
+    - cron: "7,27,47 0-15 * * 1-5"
+  workflow_dispatch:
+permissions:
+  actions: write
+  contents: read
+concurrency:
+  group: pengatur
+  cancel-in-progress: false
+jobs:
+  atur:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Picu bagian yang belum jalan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SKIP_FLOW: ${{ vars.SKIP_FLOW }}
+          SKIP_AI: ${{ vars.SKIP_AI }}
+        run: python3 scripts/pengatur.py

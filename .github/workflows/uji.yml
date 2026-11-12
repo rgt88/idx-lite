@@ -1,0 +1,36 @@
+name: uji
+# Uji cepat setiap push: sintaks Python & JavaScript, lalu skrip olahan dijalankan dengan data yang
+# sedang tayang (hasilnya TIDAK diterbitkan). Kalau merah, alarm Telegram berbunyi sebelum jadwal sore.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  uji:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Sintaks
+        run: |
+          python -m py_compile scripts/*.py
+          for f in docs/*.js; do node --check "$f"; done
+          pip install -q pyyaml
+          for f in .github/workflows/*.yml; do python -c "import sys,yaml; yaml.safe_load(open(sys.argv[1]))" "$f"; done
+      - uses: ./.github/actions/restore
+        with:
+          paths: |
+            data/summary.json
+            data/prices
+            data/fundamentals.json
+            data/signals.json
+      - name: Skrip olahan dengan data asli
+        run: |
+          python scripts/build_signals.py
+          python scripts/pengatur.py --dry-run
+        env:
+          GH_TOKEN: ${{ github.token }}
