@@ -139,6 +139,32 @@ else:
         reason += (", " if reason else "") + "idx.co.id menolak (Cloudflare)"
     add("foreign-broker", state, f"diambil {age(parse_ts(fl.get('updated')))}; ok: {', '.join(good) or '-'}" + (f"; {reason}" if reason else ""))
 
+# time to buy
+sg = get("signals.json")
+if not sg:
+    add("sinyal", "GAGAL", "signals.json tidak bisa dibaca (workflow sinyal belum pernah jalan?)")
+else:
+    ok = date.fromisoformat(sg["session"]) >= SESSION
+    cn = sg.get("counts", {})
+    add("sinyal", "OK" if ok else "TELAT",
+        f"sesi {sg['session']}, {sg.get('evaluated')} saham dinilai; sinyal beli gabungan {cn.get('combined', {}).get('beli')}, "
+        f"teknikal {cn.get('technical', {}).get('beli')}, fundamental {cn.get('fundamental', {}).get('beli')}")
+
+# laporan AI + Telegram
+ai = get("ai/index.json")
+if not ai or not ai.get("reports"):
+    add("laporan-ai", "BELUM ADA", "belum ada laporan (workflow laporan-ai belum pernah jalan?)")
+else:
+    lf = get("ai/latest.json") or {}
+    r = ai["reports"][0]
+    want_full = SESSION  # sesi terakhir yang sudah tutup; laporan penutupan dibuat 17:05
+    fulls = [x for x in ai["reports"] if x["kind"] == "full"]
+    ok = fulls and date.fromisoformat(fulls[0]["date"]) >= want_full
+    tg = str(lf.get("telegram") or "")
+    note = "" if ("ok" in tg and "belum diisi" not in tg) else f"; telegram: {tg[:80] or '-'}"
+    add("laporan-ai", "OK" if ok else "TELAT",
+        f"terakhir {r['date']} {r['kind']}, AI {'ya' if r.get('ai') else 'TIDAK'}; penutupan terakhir {fulls[0]['date'] if fulls else '-'}" + note)
+
 # HSC
 h = get("hsc.json")
 add("hsc", "OK" if h else "GAGAL", f"{h.get('count')} saham, pengumuman {h.get('as_of')}" if h else "hsc.json tidak bisa dibaca")
@@ -150,7 +176,7 @@ for name, state, detail in rows:
 
 if args.runs:
     print("\nRun terakhir tiap workflow:")
-    for wf in ("makro", "harga", "fundamental", "kepemilikan", "brief", "flow", "site"):
+    for wf in ("makro", "harga", "fundamental", "sinyal", "kepemilikan", "brief", "flow", "ai", "site"):
         try:
             out = subprocess.run(["gh", "run", "list", "--workflow", f"{wf}.yml", "--limit", "1", "--json",
                                   "status,conclusion,createdAt,event,databaseId"], capture_output=True, text=True, timeout=30)

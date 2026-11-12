@@ -97,3 +97,37 @@
   .sh-px .px { font-size: 22px; }
   .page-head h1 { font-size: 20px; }
 }
+
+.ai-card { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin: 10px 0; }
+.ai-card p { margin: 6px 0; }
+.ai-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; justify-content: space-between; }
+.ai-text { line-height: 1.55; }
+
+.star { border: 0; background: none; font-size: 1.5rem; line-height: 1; cursor: pointer; color: var(--muted); padding: 0 6px; }
+.star[aria-pressed="true"] { color: #e0a100; }
+.st { display: inline-block; font-size: .75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.st-beli { background: rgba(17,128,74,.14); color: var(--up); }
+.st-pantau { background: rgba(224,161,0,.16); color: #9a6b00; }
+.score { display: inline-flex; align-items: center; gap: 6px; min-width: 76px; }
+.score .trk { display: block; width: 44px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--muted) 22%, transparent); overflow: hidden; }
+.score i { display: block; height: 100%; background: var(--accent); }
+.score b { font-variant-numeric: tabular-nums; font-size: .85rem; }
+.lv { white-space: nowrap; }
+.ttb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0; }
+.ttb-l { min-width: 92px; font-weight: 600; }
+details.rules { margin-top: 14px; }
+details.rules summary { cursor: pointer; font-weight: 600; }
+details.rules ul { margin: 4px 0 8px; padding-left: 20px; }
+.seg.wrap { flex-wrap: wrap; max-width: 100%; }
+td .tags { min-width: 240px; flex-wrap: wrap; }
+.since { display: block; font-size: .8rem; white-space: nowrap; }
+.tlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; margin: 10px 0; }
+.ti { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.ti-h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; }
+.ti-h .sym { font-size: 1.05rem; }
+.ti-px { font-variant-numeric: tabular-nums; font-weight: 600; margin-left: 4px; }
+.ti-s { display: flex; align-items: center; gap: 6px; }
+.tm { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.tm i { font-style: normal; color: var(--muted); }
+.ti .tags { margin-top: 4px; }
+@media (max-width: 400px) { .tlist { grid-template-columns: 1fr; } }

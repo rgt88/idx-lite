@@ -1,0 +1,75 @@
+name: laporan-ai
+# Laporan pasar + ringkasan AI, dikirim ke Telegram dan tampil di menu "Laporan AI".
+#   Sesi 1    : 12:10 WIB Senin-Kamis, 11:40 WIB Jumat
+#   Penutupan : 17:05 WIB Senin-Jumat (setelah workflow harga 16:30)
+# Secrets (Settings > Secrets and variables > Actions):
+#   AI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+# Variables (opsional): AI_BASE_URL, AI_MODEL, SKIP_AI=1 untuk mematikan jadwal
+on:
+  schedule:
+    - cron: "10 5 * * 1-4"
+    - cron: "40 4 * * 5"
+    - cron: "5 10 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      jenis:
+        description: "sesi1 atau full"
+        default: full
+        type: choice
+        options: [full, sesi1]
+      kirim:
+        description: "Kirim ke Telegram"
+        default: true
+        type: boolean
+      paksa:
+        description: "Tetap buat walau bukan hari/jam bursa"
+        default: false
+        type: boolean
+permissions:
+  contents: write
+concurrency:
+  group: data-ai
+  cancel-in-progress: false
+jobs:
+  laporan:
+    if: vars.SKIP_AI != '1' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/restore
+        with:
+          paths: |
+            data/summary.json
+            data/data.json
+            data/fundamentals.json
+            data/flow/market_foreign.json
+            data/signals.json
+            data/ai
+      - name: Buat dan kirim laporan
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          EVENT: ${{ github.event_name }}
+          SCHED: ${{ github.event.schedule }}
+          JENIS: ${{ inputs.jenis }}
+          KIRIM: ${{ inputs.kirim }}
+          PAKSA: ${{ inputs.paksa }}
+        run: |
+          if [ "$EVENT" = "schedule" ]; then
+            [ "$SCHED" = "5 10 * * 1-5" ] && JENIS=full || JENIS=sesi1
+            KIRIM=true; PAKSA=false
+          fi
+          opts=()
+          [ "$KIRIM" = "true" ] || opts+=(--no-send)
+          [ "$PAKSA" = "true" ] && opts+=(--force)
+          timeout 15m python scripts/ai_report.py "$JENIS" "${opts[@]}"
+      - uses: ./.github/actions/publish
+        with:
+          paths: data/ai
+          message: laporan-ai

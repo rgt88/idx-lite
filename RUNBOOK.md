@@ -20,6 +20,8 @@ fundamental     OK            diperbarui 32 menit lalu; 400 saham tercakup, 120 
 kepemilikan     OK            register 2026-10-30, pembanding 2026-09-30
 brief           OK            diperbarui 31 menit lalu; 100 saham punya brief
 foreign-broker  OK            diambil 16 menit lalu; ok: bandar_1d, bandar_1w, broker, foreign, ...
+sinyal          OK            sesi 2026-11-11, 310 saham dinilai; sinyal beli gabungan 6, teknikal 21, fundamental 34
+laporan-ai      OK            terakhir 2026-11-11 full, AI ya; penutupan terakhir 2026-11-11
 hsc             OK            383 saham, pengumuman 2026-11-11
 ```
 
@@ -35,10 +37,13 @@ Dari HP: buka situs, lihat baris *Diperbarui* di bagian bawah, atau buka tab **A
 | --- | --- | --- | --- |
 | 08:00 | makro | **CP1 · 08:30** | makro OK; harga = sesi kemarin |
 | 10:00, 12:00, 14:00 | makro | – | – |
+| 12:10 (Jumat 11:40) | laporan-ai (sesi 1) | **CP-S1 · 13:00** | pesan *IHSG Sesi 1* masuk Telegram |
 | 16:00 | makro | – | – |
 | 16:30 | harga | **CP2 · 17:00** | harga = **sesi hari ini** |
+| setelah harga selesai | sinyal (otomatis) | | sinyal = sesi hari ini |
 | 16:45 | fundamental | | |
 | 17:00 | kepemilikan | | |
+| 17:05 | laporan-ai (penutupan) | | pesan *IHSG Penutupan* masuk Telegram |
 | 17:15 | brief | **CP3 · 18:00** | fundamental & brief diperbarui hari ini; kepemilikan register ≤ 45 hari |
 | 19:00 | makro | | |
 | 19:30 | harga (ulang), foreign-broker | **CP4 · 20:15** | harga = sesi hari ini; foreign-broker OK atau SUMBER ERROR dengan alasan |
@@ -50,8 +55,9 @@ Jadwal GitHub bisa telat sampai sekitar satu jam. Sebelum menganggap ada masalah
 Salin ke catatan masing-masing kalau mau dicentang.
 
 - [ ] **CP1 (pagi):** `cek_status.py` → makro OK, tidak ada GAGAL.
-- [ ] **CP2 (sore):** harga menunjukkan sesi hari ini. Kalau belum, lihat [Harga TELAT](#harga-telat).
-- [ ] **CP3:** fundamental dan brief diperbarui hari ini; kepemilikan OK.
+- [ ] **CP2 (sore):** harga dan sinyal menunjukkan sesi hari ini. Kalau belum, lihat [Harga TELAT](#harga-telat) dan [Sinyal TELAT](#sinyal-telat).
+- [ ] **CP-S1 (siang):** pesan *IHSG Sesi 1* masuk Telegram. Kalau tidak, lihat [Laporan AI / Telegram](#laporan-ai--telegram).
+- [ ] **CP3:** fundamental dan brief diperbarui hari ini; kepemilikan OK; pesan *IHSG Penutupan* masuk Telegram.
 - [ ] **CP4 (malam):** harga masih sesi hari ini; foreign-broker OK, atau SUMBER ERROR dengan alasan yang jelas.
 - [ ] Buka situs sekali (laptop atau HP): halaman Pasar tampil, angka IHSG dan persentasenya masuk akal dibanding sumber lain.
 - [ ] Ada pengumuman HSC baru dari BEI hari ini? Kalau ada, lihat [Memperbarui HSC](#memperbarui-hsc).
@@ -74,7 +80,15 @@ gh workflow run harga.yml                           # jalankan ulang satu workfl
 4. **Run hijau tapi sesi masih kemarin:** Yahoo belum menerbitkan candle hari ini. Jalankan ulang setelah 19:00.
 5. **Hari libur bursa:** TELAT wajar, abaikan.
 
+### Sinyal TELAT
+
+Sinyal hanya bisa sebaru harga. Kalau harga sudah sesi hari ini tapi sinyal belum: `gh workflow run sinyal.yml`. Run `sinyal` dari pemicu otomatis yang berstatus *skipped* itu normal: artinya workflow harga/fundamental yang memicunya gagal, dan jadwal cadangan 17:40/20:15 akan menyusul.
+
+Mengubah ambang (mis. likuiditas): ubah `RULES` dan nilai di `scripts/build_signals.py`, uji di laptop dengan `./scripts/update_lokal.sh sync && python scripts/build_signals.py --show BBCA`, lalu push.
+
 ### Fundamental atau brief TELAT
+
+**Mengisi semua saham sekaligus** (pertama kali, atau setelah format berubah): Actions → fundamental (atau brief) → Run workflow → centang *isi_semua*, atau `gh workflow run fundamental.yml -f isi_semua=true`. Workflow berjalan berulang sendiri (±40 menit per putaran) sampai semua saham terisi; log tiap putaran menulis `belum lengkap: N saham`. Jangan jalankan berbarengan dengan run fundamental lain.
 
 Jalankan ulang workflow-nya. Keduanya bergilir 100 saham per run, jadi satu hari terlewat tidak merusak apa pun. Kalau lognya menunjukkan banyak `gagal`, kurangi jumlahnya: `gh workflow run fundamental.yml -f max=50`.
 
@@ -96,6 +110,18 @@ Penyebabnya di luar kita: Indo Premier error (HTTP 502) atau idx.co.id menolak (
 - Cek dari laptop apakah sumber sudah pulih: `idx broker BBCA`.
 - Kalau error berhari-hari, matikan sementara supaya run tidak membuang waktu: `gh variable set SKIP_FLOW --body 1`.
 - Setelah `idx broker BBCA` berhasil lagi: `gh variable delete SKIP_FLOW`, lalu `gh workflow run flow.yml`.
+
+### Laporan AI / Telegram
+
+| Gejala | Penyebab | Tindakan |
+| --- | --- | --- |
+| Tidak ada pesan, tidak ada run hari ini | Jadwal GitHub terlewat | Actions → laporan-ai → Run workflow (jenis `full` atau `sesi1`). Sesi 1 yang dijalankan setelah 13:30 perlu centang *paksa*. |
+| Run hijau, log: *Tidak ada sesi bursa hari ini* | Hari libur, atau Yahoo belum memperbarui IHSG | Wajar saat libur. Kalau bukan libur, jalankan ulang 15–30 menit kemudian. |
+| Pesan masuk tanpa *Ringkasan AI* | `AI_API_KEY` kosong/kedaluwarsa, kuota gratis habis, atau nama model sudah tidak ada | Lihat baris `ringkasan tanpa AI:` di log. Ganti key (`gh secret set AI_API_KEY`) atau model (`gh variable set AI_MODEL --body <nama>`). |
+| Log: `telegram: ... chat not found` / `Unauthorized` | Chat id salah, bot belum di-*start*/belum masuk grup, atau token salah | Kirim `/start` ke bot (atau masukkan bot ke grup), cek ulang `TELEGRAM_CHAT_ID` dan `TELEGRAM_BOT_TOKEN`. |
+| Ingin berhenti sementara | – | `gh variable set SKIP_AI --body 1`; nyalakan lagi dengan `gh variable delete SKIP_AI`. |
+
+Uji tanpa mengirim Telegram: `python scripts/ai_report.py full --no-send --force` (di laptop, dengan `AI_API_KEY` di environment).
 
 ### Semua bagian GAGAL atau situs tidak tampil
 
@@ -164,7 +190,9 @@ Catat setiap masalah yang butuh tindakan manual sebagai **GitHub Issue** di repo
 | Status semua bagian | `python scripts/cek_status.py --runs` |
 | Run terakhir semua workflow | `gh run list --limit 15` |
 | Jalankan ulang satu bagian | `gh workflow run <makro\|harga\|fundamental\|kepemilikan\|brief\|flow>.yml` |
-| Jalankan semua | `./scripts/jalankan_semua.sh` |
+| Hitung ulang time to buy | `gh workflow run sinyal.yml` |
+| Kirim laporan AI sekarang | `gh workflow run ai.yml -f jenis=full` (atau `-f jenis=sesi1 -f paksa=true`) |
+| Jalankan semua | `./scripts/jalankan_semua.sh`, atau workflow **jalankan-semua** (bisa dari HP) |
 | Log run yang gagal | `gh run view <ID> --log-failed \| tail -40` |
 | Matikan / nyalakan foreign-broker | `gh variable set SKIP_FLOW --body 1` / `gh variable delete SKIP_FLOW` |
 | Pratinjau lokal dengan data tayang | `./scripts/update_lokal.sh sync && python -m http.server 8000 -d docs` |

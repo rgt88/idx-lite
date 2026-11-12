@@ -1,0 +1,37 @@
+name: sinyal
+# Watchlist "time to buy" (teknikal, fundamental, gabungan) -> signals.json.
+# Jalan otomatis setiap kali workflow harga atau fundamental selesai dengan sukses,
+# dengan jadwal cadangan 17:40 dan 20:15 WIB.
+on:
+  workflow_run:
+    workflows: [harga, fundamental]
+    types: [completed]
+  schedule:
+    - cron: "40 10 * * 1-5"
+    - cron: "15 13 * * 1-5"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: data-sinyal
+  cancel-in-progress: false
+jobs:
+  sinyal:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/restore
+        with:
+          paths: |
+            data/summary.json
+            data/prices
+            data/fundamentals.json
+            data/signals.json
+      - run: python scripts/build_signals.py
+      - uses: ./.github/actions/publish
+        with:
+          paths: data/signals.json
+          message: sinyal

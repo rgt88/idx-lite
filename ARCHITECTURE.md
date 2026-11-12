@@ -87,6 +87,8 @@ Setiap sumber data punya workflow sendiri. Kalau satu sumber error atau lambat, 
 | kepemilikan | `kepemilikan.yml` | 17:00 | `ownership/` |
 | brief | `brief.yml` | 17:15 | `brief/`, `brief_index.json` |
 | foreign-broker | `flow.yml` | 19:30 | `flow/` |
+| sinyal | `sinyal.yml` | setiap kali harga/fundamental selesai sukses; cadangan 17:40 dan 20:15 | `signals.json` |
+| laporan-ai | `ai.yml` | 12:10 Sen–Kam, 11:40 Jum (sesi 1); 17:05 (penutupan) | `ai/` + pesan Telegram |
 
 Menjalankan ulang satu bagian: `gh workflow run harga.yml` (atau tombol *Run workflow* di tab Actions). Menjalankan semuanya: `./scripts/jalankan_semua.sh`.
 
@@ -127,6 +129,11 @@ Kalau skrip gagal total, publish tidak dijalankan dan situs tetap menampilkan da
 | `ownership/t/KODE.json` | Daftar pemegang dan perubahannya sejak register sebelumnya | fetch_ownership |
 | `brief/KODE.json` | Isi `idx stocks brief` (`idx.brief.v1`) | fetch_brief |
 | `brief_index.json` | Kapan brief tiap saham terakhir diambil | fetch_brief |
+| `signals.json` | Skor & status time to buy (teknikal, fundamental, gabungan) per saham likuid, urutan daftar, aturan, tanggal sinyal pertama muncul | build_signals |
+| `ai/index.json` | Daftar laporan (maks 120) | ai_report |
+| `ai/<tanggal>-sesi1.json`, `ai/<tanggal>-full.json` | Angka laporan, teks AI, model, status kirim Telegram | ai_report |
+| `ai/latest.json` | Laporan terbaru (dipakai halaman Pasar) | ai_report |
+| `ai/stocks.json` | Catatan AI untuk sekitar 10 saham teraktif/penggerak (laporan penutupan) | ai_report |
 | `manual.json` | Isian manual CDS/yield | manusia |
 | `hsc.json` | Daftar HSC + tanggal publikasi + sumber | hsc_update / manusia |
 
@@ -200,9 +207,37 @@ Dari lampiran PDF, skrip membaca nomor pengumuman, tanggal pengumuman, tanggal e
 
 Push ke `main` langsung menerbitkan ulang situs. Skrip mencetak saham yang masuk dan keluar dibanding daftar sebelumnya, jadi hasilnya bisa dicek sebelum push. Hitungan hari bursa efektif tidak memperhitungkan hari libur bursa; cocokkan dengan teks pengumuman.
 
+## Time to buy (watchlist sinyal beli)
+
+`scripts/build_signals.py` menilai setiap saham likuid (rata-rata nilai 20 hari ≥ Rp1 M, harga ≥ Rp50; saham HSC yang likuid ikut dinilai dengan peringatan) dari tiga sudut pandang, masing-masing skor 0–100:
+
+- **Teknikal** dari `prices/`: tren (SMA20/50/200), momentum (RSI, MACD), setup masuk (breakout 20 hari bervolume, pullback ke MA20 di tren naik, rebound dari oversold, MACD cross, golden cross), volume; penalti overbought dan harga terlalu jauh dari MA20. Stop = yang lebih dekat antara 2× ATR14 dan low 10 hari; target = resistance 60 hari atau 2× risiko.
+- **Fundamental** dari `fundamentals.json`: ROE, pertumbuhan pendapatan/laba YoY, P/E dibanding median sektor (Yahoo `sector`, minimal 5 saham; selain itu median pasar), P/B, PEG, target dan rekomendasi analis, dividen. Saham rugi dikeluarkan.
+- **Gabungan**: rata-rata keduanya, dengan syarat keduanya ≥ 50 dan harga di atas SMA50.
+
+Fundamental dan brief diambil bergilir 100 saham per hari. Untuk mengisi semuanya sekaligus, jalankan workflow `fundamental` atau `brief` dengan `isi_semua=true`: skrip hanya mengambil saham yang belum lengkap, berhenti rapi setelah 36 menit (hasil disimpan berkala), lalu memicu putaran berikutnya sendiri sampai tidak ada yang tersisa. Rantai berhenti sendiri kalau satu putaran tidak berhasil mengambil apa pun (mis. dibatasi Yahoo).
+
+Status *Sinyal beli* atau *Pantau* mengikuti ambang di `RULES` pada skrip (aturan yang sama ditampilkan di situs, bagian *Cara penilaian*). Tanggal pertama sebuah sinyal beli muncul disimpan (`since`), jadi hasilnya sejak itu bisa dipantau. Workflow `sinyal` dipicu otomatis oleh selesainya `harga` atau `fundamental` (`workflow_run`), sehingga tidak perlu menebak jam.
+
+Tampil di menu **Time to Buy** (tab Gabungan, Teknikal, Fundamental, Watchlist saya), kartu *Time to buy* di tab Ringkasan saham, perintah terminal `buy`, dan bagian *Time to buy* di laporan Telegram penutupan. *Watchlist saya* (tombol ☆ di halaman saham) disimpan di browser masing-masing, tidak di server.
+
+## Laporan AI dan Telegram
+
+`scripts/ai_report.py sesi1|full` dijalankan workflow `laporan-ai`:
+
+1. Cek hari bursa: tanggal candle IHSG (Yahoo, interval 5 menit) harus hari ini; kalau tidak, berhenti tanpa laporan. Laporan sesi 1 juga dilewati kalau jadwal GitHub telat sampai sesi 2 sudah buka.
+2. Skrip menghitung semua angka sendiri: IHSG dan rentangnya, naik/turun dari 150 (sesi 1) atau 300 (penutupan) saham teraktif menurut `summary.json`, top gainer/loser (nilai ≥ 0,5 M / 1 M, tanpa saham HSC), teraktif, saham HSC yang bergerak ≥ 10%, USD/IDR, WTI, yield SBN, dan net asing kalau `flow/market_foreign.json` sudah sesi hari ini.
+3. Angka itu dikirim ke LLM lewat endpoint *OpenAI-compatible* (`AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY`). Prompt melarang menambah fakta, menebak penyebab, dan memberi rekomendasi beli/jual. Laporan penutupan juga meminta catatan singkat per saham dalam satu panggilan.
+4. Pesan Telegram (HTML, ≤ 4096 karakter) dikirim ke setiap id di `TELEGRAM_CHAT_ID`; kalau HTML ditolak, dikirim ulang sebagai teks biasa.
+5. Hasil disimpan di `ai/` dan diterbitkan ke situs: kartu di halaman Pasar, menu **Laporan AI** (dengan arsip), dan *Catatan AI* di tab Ringkasan saham.
+
+Tanpa `AI_API_KEY` atau saat layanan AI gagal, laporan tetap dibuat dan dikirim tanpa paragraf AI. Tanpa token Telegram, laporan hanya tampil di situs. Penyedia bawaan Google Gemini (tier gratis Google AI Studio); bisa diganti Groq atau OpenRouter hanya dengan mengubah variabel `AI_BASE_URL` dan `AI_MODEL`. Batas gratis penyedia bisa berubah sewaktu-waktu. Key dan token hanya disimpan sebagai *repository secret*, tidak pernah di kode.
+
 ## Batasan
 
 - Harga tertunda dan bersumber dari layanan tidak resmi; cocokkan dengan sumber resmi sebelum mengambil keputusan.
 - Foreign dan broker hanya untuk 100 saham paling aktif, dalam rupiah, dari 10 broker teratas per sisi yang diterbitkan IPOT.
 - Sinyal teknikal dan bandarmology adalah heuristik, bukan saran investasi.
+- Time to buy adalah penyaring berbasis aturan sederhana dari data tertunda. Tidak ada backtest; pantau kolom *sejak* untuk melihat hasil nyatanya.
+- Ringkasan AI ditulis model bahasa dari angka laporan; bisa salah tafsir. Angka di laporan dihitung skrip, bukan oleh AI.
 - Tidak ada akun pengguna. Riwayat perintah dan watchlist disimpan di browser masing-masing.

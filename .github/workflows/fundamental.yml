@@ -1,5 +1,5 @@
 name: fundamental
-# Valuasi dan laporan keuangan, 100 saham per run bergilir. 16:45 WIB.
+# Valuasi dan laporan keuangan, 100 saham per run bergilir (atau semua saham dengan isi_semua=true). 16:45 WIB.
 on:
   schedule:
     - cron: "45 9 * * 1-5"
@@ -8,8 +8,13 @@ on:
       max:
         description: Jumlah saham
         default: "100"
+      isi_semua:
+        description: "Isi semua saham: jalan berulang otomatis (±40 menit per putaran) sampai semua saham punya data"
+        type: boolean
+        default: false
 permissions:
   contents: write
+  actions: write
 concurrency:
   group: data-fundamental
   cancel-in-progress: false
@@ -26,10 +31,22 @@ jobs:
             data/summary.json
             data/fundamentals.json
             data/fundamentals
-      - run: timeout 40m python scripts/fetch_fundamentals.py --max "${{ inputs.max || '100' }}" || echo "berhenti lebih awal; yang sudah jadi tetap diterbitkan"
+      - id: ambil
+        run: |
+          MAX="${{ inputs.max || '100' }}"
+          EXTRA=""
+          [ "${{ inputs.isi_semua }}" = "true" ] && { MAX=5000; EXTRA=--only-missing; }
+          timeout 42m python scripts/fetch_fundamentals.py --max "$MAX" --budget 36 $EXTRA || echo "berhenti lebih awal; yang sudah jadi tetap diterbitkan"
       - uses: ./.github/actions/publish
         with:
           paths: |
             data/fundamentals.json
             data/fundamentals
           message: fundamental
+      - name: Lanjut putaran berikutnya (mode isi semua)
+        if: inputs.isi_semua && steps.ambil.outputs.left != '0' && steps.ambil.outputs.ok != '0' && steps.ambil.outputs.ok != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "masih ${{ steps.ambil.outputs.left }} saham; jalankan putaran berikutnya"
+          gh workflow run fundamental.yml --repo "$GITHUB_REPOSITORY" --ref main -f isi_semua=true

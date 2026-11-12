@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import pathlib
 import sys
 import time
@@ -22,6 +23,8 @@ EPS = ["dilutedeps", "basiceps"]
 ap = argparse.ArgumentParser()
 ap.add_argument("--max", type=int, default=100, help="jumlah saham per run")
 ap.add_argument("--symbols", nargs="*", help="ambil saham tertentu saja")
+ap.add_argument("--only-missing", action="store_true", help="hanya saham yang belum lengkap (mode isi semua)")
+ap.add_argument("--budget", type=float, default=0, help="berhenti rapi setelah N menit (0 = tanpa batas)")
 args = ap.parse_args()
 
 
@@ -150,6 +153,7 @@ def snapshot(info):
         "roe": num(roe * 100, 1) if isinstance(roe, (int, float)) else None,
         "mcap": num(info.get("marketCap"), 0),
         "currency": info.get("financialCurrency"),
+        "sector": info.get("sector"),
     }
 
 
@@ -172,14 +176,44 @@ if args.symbols:
 else:
     def staleness(s):
         e = stocks.get(s, {})
-        if not e.get("fetched") or e.get("v") != VERSION:
-            return (0, "")
-        return (1, e["fetched"])   # belum pernah diambil dulu, lalu yang paling lama
-    todo = sorted(universe(), key=staleness)[: args.max]
+        if not e.get("fetched"):
+            return (0, "")              # belum pernah diambil
+        if e.get("v") != VERSION or "sector" not in e:
+            return (1, e["fetched"])    # format lama / belum ada sektor
+        return (2, e["fetched"])        # lalu yang paling lama
+    todo = sorted(universe(), key=staleness)
+    if args.only_missing:
+        todo = [s for s in todo if staleness(s)[0] < 2]
+    todo = todo[: args.max]
+
+
+def incomplete():
+    """Saham yang belum pernah diambil atau formatnya lama (untuk mode isi semua)."""
+    return sum(1 for s in universe() if not stocks.get(s, {}).get("fetched") or stocks[s].get("v") != VERSION or "sector" not in stocks[s])
+
+
+def save():
+    summary["updated"] = datetime.now(timezone.utc).isoformat()
+    SUMMARY.write_text(json.dumps(summary, separators=(",", ":")))
+
+
+T0 = time.monotonic()
+streak = 0
 
 now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 ok = 0
-for sym in todo:
+for n, sym in enumerate(todo):
+    if args.budget and time.monotonic() - T0 > args.budget * 60:
+        print(f"batas waktu {args.budget:g} menit tercapai; berhenti di {n}/{len(todo)}")
+        break
+    if n and n % 20 == 0:
+        save()                      # simpan berkala supaya hasil tidak hilang kalau job dihentikan
+    if streak >= 15:
+        print("15 kali gagal berturut-turut (kemungkinan dibatasi Yahoo); berhenti")
+        break
+    if streak and streak % 5 == 0:
+        print("gagal beruntun; jeda 60 detik")
+        time.sleep(60)
     try:
         t = yf.Ticker(f"{sym}.JK")
         q = build(get_stmt(t, "quarterly"), 1, 4, 8)
@@ -189,7 +223,7 @@ for sym in todo:
         an = analyst(t, info)
         if not q and not a and snap["pe"] is None and snap["mcap"] is None:
             print(f"kosong {sym}")
-            stocks[sym] = {"fetched": now, "n_quarters": 0, "v": VERSION}
+            stocks[sym] = {"fetched": now, "n_quarters": 0, "v": VERSION, "sector": None}
             continue
         (FD / f"{sym}.json").write_text(json.dumps(
             {"symbol": sym, "fetched": now, "currency": snap["currency"], "quarters": q, "annual": a, "analyst": an},
@@ -205,12 +239,17 @@ for sym in todo:
             for r in q:
                 print("   ", r)
         ok += 1
+        streak = 0
     except Exception as e:
         print(f"gagal {sym}: {e}")
+        streak += 1
     time.sleep(1.0)
 
-summary["updated"] = datetime.now(timezone.utc).isoformat()
-SUMMARY.write_text(json.dumps(summary, separators=(",", ":")))
-print(f"selesai: {ok} berhasil dari {len(todo)}")
+save()
+left = incomplete()
+print(f"selesai: {ok} berhasil dari {len(todo)} · belum lengkap: {left} saham")
+if os.environ.get("GITHUB_OUTPUT"):
+    with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+        fh.write(f"ok={ok}\nleft={left}\n")
 if todo and ok == 0:
     sys.exit(1)

@@ -176,3 +176,25 @@ a.card:hover { border-color: var(--accent); }
 .spark polyline.down { stroke: var(--down); }
 .mchart h3 { margin-top: 0; }
 .mchart .chart.sm { height: 170px; }
+
+/* time to buy & laporan AI (dipakai bersama tampilan utama) */
+.seg, .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.seg button, .chip { border: 1px solid var(--line); background: transparent; color: var(--fg); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.seg button[aria-pressed="true"], .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.tlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; margin: 10px 0; }
+.ti, .ai-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.ai-card { border-left: 3px solid var(--accent); margin: 10px 0; }
+.ti-h, .ai-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; }
+.ti-px { font-weight: 600; margin-left: 4px; }
+.ti-s, .ttb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ttb-l { min-width: 92px; font-weight: 600; }
+.tm { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0; font-size: 13px; }
+.tm i { font-style: normal; color: var(--muted); }
+.since { display: block; font-size: 12px; }
+.st { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+.st-beli { background: color-mix(in srgb, var(--up) 15%, transparent); color: var(--up); }
+.st-pantau { background: rgba(224,161,0,.16); color: #b07a00; }
+.score { display: inline-flex; align-items: center; gap: 6px; }
+.score .trk { display: block; width: 44px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--muted) 25%, transparent); overflow: hidden; }
+.score i { display: block; height: 100%; background: var(--accent); }
+details.rules summary { cursor: pointer; font-weight: 600; }

@@ -1,5 +1,6 @@
 name: jalankan-semua
 # Satu tombol untuk menjalankan beberapa workflow data sekaligus (dari HP atau web).
+# Masing-masing tetap berjalan sendiri-sendiri: yang gagal tidak menghambat yang lain.
 on:
   workflow_dispatch:
     inputs:

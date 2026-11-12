@@ -749,6 +749,130 @@ def("macro", "macro", "Indikator makro dengan grafik tren: USD/IDR, IHSG, minyak
   requestAnimationFrame(() => setRange("3M"));
 }, ["makro"]);
 
+/* ---------- watchlist saya (disimpan di browser) + time to buy (scripts/build_signals.py) ---------- */
+const WKEY = "idxlite.watch";
+const watchList = () => { try { return JSON.parse(localStorage.getItem(WKEY) || "[]"); } catch (e) { return []; } };
+const watchSave = (xs) => { try { localStorage.setItem(WKEY, JSON.stringify([...new Set(xs)])); } catch (e) { /* mode privat */ } };
+const watchHas = (s) => watchList().includes(s);
+function watchToggle(s) { const w = watchList(); watchSave(w.includes(s) ? w.filter((x) => x !== s) : [...w, s]); return !w.includes(s); }
+
+const TTB = {
+  gabungan: { k: "c", list: "combined", l: "Gabungan", d: "Fundamental sehat dan momentum teknikal sudah masuk. Kandidat paling lengkap." },
+  teknikal: { k: "t", list: "technical", l: "Teknikal", d: "Tren, momentum, volume, dan setup masuk (breakout, pullback, rebound). Cocok untuk swing beberapa hari sampai minggu." },
+  fundamental: { k: "f", list: "fundamental", l: "Fundamental", d: "Untung, tumbuh, valuasi di bawah sektor, didukung analis/dividen. Cocok untuk koleksi jangka menengah-panjang; waktu masuk tetap lihat teknikal." },
+  saya: { k: null, list: null, l: "Watchlist saya", d: "Saham yang kamu tandai ☆ di halaman saham, dengan status ketiga sudut pandang. Tersimpan di browser ini saja." },
+};
+const ST_LABEL = { beli: "Sinyal beli", pantau: "Pantau" };
+const stBadge = (x) => (x?.status ? `<span class="st st-${x.status}">${ST_LABEL[x.status]}</span>` : `<span class="muted">–</span>`);
+const scoreBar = (v) => (isNum(v) ? `<span class="score" title="Skor ${v}/100"><span class="trk"><i style="width:${Math.max(4, v)}%"></i></span><b>${v}</b></span>` : "–");
+let SIG_SESSION = null;
+const sinceTxt = (x) => (!x?.since ? "" : x.since === SIG_SESSION ? `<span class="since muted">baru hari ini</span>`
+  : `<span class="since"><span class="muted">sejak ${esc(tgl(x.since))}</span> ${pct(x.since_ret, 1)}</span>`);
+const levels = (t) => (t ? `<span class="lv">${nf(t.stop)} <span class="muted">/</span> ${nf(t.target)}</span>` : "–");
+const why = (x) => (x ? [...(x.setups || []).map((t) => `<span class="tag bull">${esc(t)}</span>`), ...(x.reasons || []).slice(0, 3).map((t) => `<span class="tag">${esc(t)}</span>`),
+  ...(x.warnings || []).map((t) => `<span class="tag bear">${esc(t)}</span>`)].join("") : "");
+
+def("buy", "buy [gabungan|teknikal|fundamental|saya] [--semua]", "Watchlist time to buy: saham dengan sinyal beli menurut teknikal, fundamental, atau keduanya. --semua menampilkan juga yang berstatus pantau; --tanpa-hsc menyembunyikan saham HSC.", async (a) => {
+  const sig = await getJSON("signals.json", true);
+  need(sig, "Data sinyal belum ada. Dihitung otomatis setelah workflow harga selesai (sekitar 16:45 WIB).");
+  SIG_SESSION = sig.session;
+  const mode = TTB[String(a.pos[0] || "gabungan").toLowerCase()] ? String(a.pos[0] || "gabungan").toLowerCase() : "gabungan";
+  const m = TTB[mode], all = !!(a.flags.semua || a.flags.all);
+  const S = sig.stocks;
+  const nohsc = !!a.flags["tanpa-hsc"];
+  const cmdOf = (md, al, nh) => `buy ${md}${al ? " --semua" : ""}${nh ? " --tanpa-hsc" : ""}`;
+  const tabs = `<div class="seg wrap" role="group" aria-label="Sudut pandang">${Object.entries(TTB).map(([id, x]) =>
+    `<button data-cmd="${cmdOf(id, all, nohsc)}" aria-pressed="${id === mode}">${x.l}</button>`).join("")}</div>`;
+  const toggle = mode === "saya" ? "" : `<div class="chips">${[[false, "Sinyal beli saja"], [true, "Termasuk pantau"]].map(([v, l]) =>
+    `<button class="chip" data-cmd="${cmdOf(mode, v, nohsc)}" aria-pressed="${v === all}">${l}</button>`).join("")}
+    <button class="chip" data-cmd="${cmdOf(mode, all, !nohsc)}" aria-pressed="${nohsc}">Sembunyikan HSC</button></div>`;
+  const head = `${tabs}${toggle}<p class="muted">${m.d}</p>`;
+  const foot = `<details class="rules"><summary>Cara penilaian</summary>
+      <p><b>Saham yang dinilai:</b> ${esc(sig.rules.universe)} ${nf(sig.evaluated)} saham dinilai sesi ${esc(tgl(sig.session))}; ${nf(sig.with_fundamental)} punya data fundamental (bertambah 100 saham per hari).</p>
+      ${["technical", "fundamental", "combined"].map((k) => `<p><b>${{ technical: "Teknikal", fundamental: "Fundamental", combined: "Gabungan" }[k]}</b></p><ul>${sig.rules[k].map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`).join("")}
+      <p><b>Stop / target</b>: stop = yang lebih dekat antara 2× ATR14 di bawah harga dan low 10 hari; target = resistance 60 hari atau 2× risiko. <b>Sejak</b> = tanggal sinyal beli pertama muncul dan hasil sejak itu.</p>
+    </details>
+    <p class="note">Penyaring berbasis aturan dari data tertunda, bukan saran investasi. Selalu cek berita, laporan keuangan, dan batasi risiko per transaksi. Diperbarui ${wib(sig.updated)}.</p>`;
+
+  const mini = (pairs) => `<div class="tm">${pairs.filter(([, v]) => v != null && v !== "–").map(([k, v]) => `<span><i>${k}</i> ${v}</span>`).join("")}</div>`;
+  const techM = (t) => (t ? [["RSI", nf(t.rsi, 0)], ["Stop", nf(t.stop)], ["Target", nf(t.target)], ["R:R", nf(t.rr, 1)], ["Risiko", isNum(t.risk_pct) ? nf(t.risk_pct, 1) + "%" : null]] : []);
+  const fundM = (f) => (f && !f.excluded ? [["P/E", `${nf(f.pe, 1)}${isNum(f.med_pe) ? ` <span class="muted">vs ${nf(f.med_pe, 1)}</span>` : ""}`], ["P/B", nf(f.pb, 2)],
+    ["ROE", isNum(f.roe) ? nf(f.roe, 1) + "%" : null], ["Laba YoY", isNum(f.ni_yoy) ? pct(f.ni_yoy, 0) : null], ["Ke target", isNum(f.upside) ? pct(f.upside, 0) : null],
+    ["Div", isNum(f.div) ? nf(f.div, 1) + "%" : null]] : []);
+  const item = (r, x, metrics, tags, extra = "") => `<article class="ti">
+      <div class="ti-h"><div>${watchHas(r.symbol) ? "★ " : ""}${symLink(r.symbol)} <span class="ti-px">${nf(r.price)}</span> ${pct(r.chg)}</div>
+        <div class="ti-s">${stBadge(x)} ${scoreBar(x && !x.excluded ? x.score : null)}</div></div>
+      ${sinceTxt(x)}${extra}${mini(metrics)}<div class="tags">${tags}</div></article>`;
+
+  if (mode === "saya") {
+    const w = watchList();
+    if (!w.length) return `${head}<div class="empty"><b>Watchlist masih kosong.</b><p>Buka halaman saham lalu ketuk ☆ di samping kodenya.</p></div>${foot}`;
+    const cards = w.map((sym) => {
+      const r = { symbol: sym, ...(S[sym] || {}) };
+      if (!r.t && !r.f) return item(r, null, [], `<span class="muted">Tidak dinilai: saham HSC, kurang likuid, atau riwayat harga belum cukup.</span>`);
+      const sub = (l, x) => `<div class="ttb-row"><span class="ttb-l">${l}</span>${stBadge(x)} ${scoreBar(x && !x.excluded ? x.score : null)}</div>`;
+      return item(r, r.c, [...techM(r.t), ...fundM(r.f)], why(r.t) + why(r.f), sub("Teknikal", r.t) + sub("Fundamental", r.f));
+    }).join("");
+    return `${head}<div class="tlist">${cards}</div><div class="btns">${w.map((s) => `<button class="btn" data-unwatch="${esc(s)}">Hapus ${esc(s)}</button>`).join("")}</div>${foot}`;
+  }
+
+  const list = sig.lists[m.list].filter((s) => (all || S[s][m.k].status === "beli") && !(nohsc && S[s].hsc));
+  const cnt = sig.counts[m.list];
+  const intro = `<p><b>${nf(cnt.beli)}</b> sinyal beli${all ? `, ${nf(cnt.total - cnt.beli)} pantau` : ""} dari ${nf(sig.evaluated)} saham likuid.</p>`;
+  const cards = list.map((sym) => {
+    const r = { symbol: sym, ...S[sym] };
+    if (mode === "teknikal") return item(r, r.t, techM(r.t), why(r.t));
+    if (mode === "fundamental") return item(r, r.f, fundM(r.f), why(r.f), `<div class="ttb-row"><span class="muted">Teknikal:</span> ${stBadge(r.t)} ${scoreBar(r.t?.score)}</div>`);
+    return item(r, r.c, [["Teknikal", nf(r.t.score)], ["Fundamental", nf(r.f.score)], ...techM(r.t).slice(1, 4), ...fundM(r.f).slice(0, 1)],
+      why({ setups: r.t.setups, reasons: [...r.f.reasons.slice(0, 2), ...r.t.reasons.slice(0, 1)], warnings: [...r.t.warnings, ...r.f.warnings] }));
+  }).join("");
+  const empty = `<div class="empty">${all ? "Belum ada saham yang memenuhi syarat." : `Tidak ada sinyal beli hari ini. <a data-cmd="buy ${mode} --semua">Tampilkan yang berstatus pantau</a>.`}</div>`;
+  return `${head}${intro}${cards ? `<div class="tlist">${cards}</div>` : empty}${foot}`;
+}, ["timetobuy", "beli", "watchlist"]);
+
+/* kartu ringkas time to buy di tab Ringkasan saham */
+async function ttbCard(sym) {
+  const sig = await getJSON("signals.json", true), e = sig?.stocks?.[sym];
+  if (!e) return "";
+  SIG_SESSION = sig.session;
+  const line = (label, x, extra = "") => `<div class="ttb-row"><span class="ttb-l">${label}</span>${stBadge(x)} ${scoreBar(x && !x.excluded ? x.score : null)} ${sinceTxt(x)}${extra}</div>`;
+  return `<div class="ai-card ttb"><div class="ai-head"><b>Time to buy</b><a class="muted" data-cmd="buy">lihat semua</a></div>
+    ${line("Gabungan", e.c)}
+    ${line("Teknikal", e.t, e.t ? ` <span class="muted">stop ${nf(e.t.stop)} · target ${nf(e.t.target)} · R:R ${nf(e.t.rr, 1)}</span>` : "")}
+    ${line("Fundamental", e.f)}
+    <div class="tags">${why(e.t)}${why(e.f)}</div>
+    <p class="note">Skor 0–100 dari aturan sederhana, sesi ${esc(tgl(sig.session))}. Bukan saran investasi.</p></div>`;
+}
+
+/* ---------- laporan AI (scripts/ai_report.py) ---------- */
+const AI_KIND = { sesi1: "Sesi 1", full: "Penutupan" };
+function aiCard(r, full = false) {
+  if (!r) return "";
+  const f = r.facts || {}, ih = f.ihsg || {}, b = f.breadth || {};
+  const row = (xs, g) => (xs || []).slice(0, 5).map(g).join(" · ") || "–";
+  const when = new Date(r.generated_at).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return `<div class="ai-card">
+    <div class="ai-head"><b>Laporan ${AI_KIND[r.kind] || esc(r.kind)}</b><span class="muted">${esc(tgl(r.date))} · dibuat ${esc(when)} WIB</span></div>
+    ${ih.value ? `<p>IHSG <b>${nf(ih.value, 2)}</b> ${pct(ih.change_pct)} · naik ${nf(b.naik)}, turun ${nf(b.turun)}, tetap ${nf(b.tetap)} <span class="muted">(${nf(b.dipantau)} saham teraktif)</span></p>` : ""}
+    ${r.ai_text ? `<p class="ai-text">${esc(r.ai_text)}</p><p class="note">Ditulis AI (${esc(r.model || "")}) hanya dari angka di atas. Bisa keliru; bukan saran investasi.</p>`
+                : `<p class="note">Ringkasan AI tidak tersedia untuk laporan ini (key AI belum diisi atau layanan AI gagal).</p>`}
+    ${full ? `<p><b>Top gainer:</b> ${row(f.gainers, (m) => `${symLink(m.symbol)} ${pct(m.change_pct)}`)}</p>
+      <p><b>Top loser:</b> ${row(f.losers, (m) => `${symLink(m.symbol)} ${pct(m.change_pct)}`)}</p>
+      <p><b>Teraktif:</b> ${row(f.active, (m) => `${symLink(m.symbol)} ${big(m.value)}`)}</p>
+      ${f.hsc_movers?.length ? `<p><b>Saham HSC bergerak tajam:</b> ${row(f.hsc_movers, (m) => `${symLink(m.symbol)} ${pct(m.change_pct)}`)}</p>` : ""}` : ""}
+  </div>`;
+}
+
+def("ai", "ai [YYYY-MM-DD-sesi1|YYYY-MM-DD-full]", "Laporan pasar otomatis sesi 1 dan penutupan, dengan ringkasan AI. Tanpa argumen: laporan terbaru dan arsipnya.", async (a) => {
+  const idx = await getJSON("ai/index.json", true);
+  need(idx?.reports?.length, "Belum ada laporan AI. Laporan dibuat otomatis setelah sesi 1 (12:10 WIB, Jumat 11:40) dan setelah penutupan (17:05 WIB).");
+  const id = a[0] || idx.reports[0].id;
+  const r = await getJSON(`ai/${id}.json`, true);
+  need(r, `Laporan ${id} tidak ditemukan.`);
+  const list = idx.reports.slice(0, 30).map((x) => `<a class="code" data-cmd="ai ${esc(x.id)}">${esc(x.date)} ${AI_KIND[x.kind] || x.kind}</a> ${pct(x.ihsg_change_pct)}`).join("<br>");
+  return `${aiCard(r, true)}<h3>Arsip laporan</h3><p>${list}</p>`;
+}, ["laporan"]);
+
 def("market", "market", "Ringkasan pasar: makro, breadth, top gainer/loser/teraktif, asing dan broker.", async () => {
   const s = await summary();
   const last = s.stocks.reduce((m, x) => (x.date > m ? x.date : m), "");
@@ -758,8 +882,11 @@ def("market", "market", "Ringkasan pasar: makro, breadth, top gainer/loser/terak
   const mini = (rows, f) => table([{ h: "Kode", f: (r) => symLink(r.symbol) }, { h: "Harga", n: 1, f: (r) => nf(r.price) }, { h: "Chg", n: 1, f: (r) => pct(r.change_pct) }, { h: f[0], n: 1, f: f[1] }], rows);
   const [mf, mb] = await Promise.all([marketForeignEnv(), getJSON("flow/market_brokers.json", true)]);
   const fcols = [{ h: "Kode", f: (r) => symLink(r.symbol) }, { h: "Chg", n: 1, f: (r) => pct(r.change_pct) }, { h: "Foreign net", n: 1, f: (r) => sgn(r.foreign_net_value) }];
+  const air = await getJSON("ai/latest.json", true);
+  const aiFresh = air && air.date >= last ? `${aiCard(air)}<div class="btns">${cmdBtn("ai", "Laporan lengkap & arsip")}</div>` : "";
   return `
     ${await macroCards()}
+    ${aiFresh}
     <div class="cards" style="margin-top:8px">${card("Naik", `<span class="up">${nf(up)}</span>`)}${card("Turun", `<span class="down">${nf(down)}</span>`)}${card("Tetap", nf(today.length - up - down))}${card("Nilai transaksi", big(today.reduce((t, x) => t + (x.value || 0), 0)))}</div>
     <p class="muted">Sesi ${esc(last)} · gainer/loser hanya saham dengan nilai transaksi ≥ 1B</p>
     <div class="grid">
@@ -906,10 +1033,15 @@ def("brief", "brief BBCA", "Satu halaman: poin penting, valuasi, teknikal, retur
   const nw = d?.news;
   if (nw) pts.push(nw.company_matches ? `${nw.company_matches} berita terbaru menyebut perusahaan ini; nadanya ${word(SENT, nw.sentiment)}.` : "Belum ada berita terbaru yang menyebut perusahaan ini.");
 
+  const ain = await getJSON("ai/stocks.json", true);
+  const aiNote = ain?.notes?.[sym] ? `<div class="ai-card"><div class="ai-head"><b>Catatan AI</b><span class="muted">${esc(tgl(ain.date))}</span></div><p class="ai-text">${esc(ain.notes[sym])}</p><p class="note">Ditulis AI dari data harga, teknikal dan fundamental di situs ini. Bisa keliru; bukan saran investasi.</p></div>` : "";
+
   const sector = [fu.sector, fu.industry].filter(Boolean).map(esc).join(" · ");
   const reasons = (title, list) => (list?.length ? `<details><summary>${title}</summary><ul>${list.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></details>` : "");
   body.innerHTML = `
     ${d?.name || sector ? `<p class="muted">${esc(d?.name || NAMES[sym] || "")}${sector ? ` · ${sector}` : ""}</p>` : ""}
+    ${await ttbCard(sym)}
+    ${aiNote}
     <h3>Poin penting</h3>
     <ul class="points">${pts.map((p) => `<li>${p}</li>`).join("")}</ul>
     <div class="reasons">

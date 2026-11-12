@@ -7,6 +7,8 @@ const TABS = [
 ];
 const PAGES = {
   pasar: { title: "Pasar hari ini", desc: "Indikator makro, saham naik dan turun terbanyak, yang paling aktif, aliran dana asing, dan broker teratas.", cmd: "market" },
+  beli: { title: "Time to buy", desc: "Watchlist saham yang sedang memberi sinyal beli menurut teknikal, fundamental, atau keduanya. Dihitung ulang setiap sore setelah harga diperbarui.", cmd: "buy" },
+  ai: { title: "Laporan AI", desc: "Laporan otomatis setelah sesi 1 dan setelah penutupan: angka dihitung skrip, narasinya ditulis AI. Juga dikirim ke Telegram.", cmd: "ai" },
   makro: { title: "Makro", desc: "Kurs, IHSG, minyak, yield SBN dan CDS, dengan grafik tren.", cmd: "macro" },
   foreign: { title: "Foreign flow", desc: "Saham yang paling banyak dibeli dan dijual investor asing pada sesi terakhir. Ketuk kode saham untuk riwayatnya.", cmd: "foreign" },
   broker: { title: "Broker", desc: "Ranking broker seluruh pasar pada sesi terakhir. Ketuk kode broker untuk melihat saham yang ia beli dan jual.", cmd: "brokers" },
@@ -17,7 +19,7 @@ const PAGES = {
   x: { title: "Hasil", desc: "", cmd: null },
 };
 const TAB_OF = { quote: "ringkasan", brief: "ringkasan", technical: "teknikal", fundamental: "fundamental", analyst: "analis", ownership: "kepemilikan", broker: "broker", foreign: "foreign", bandar: "bandar" };
-const PAGE_OF = { market: "pasar", macro: "makro", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc", ownership: "kepemilikan" };
+const PAGE_OF = { buy: "beli", ai: "ai", market: "pasar", macro: "makro", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc", ownership: "kepemilikan" };
 
 const view = $("#view");
 
@@ -71,7 +73,7 @@ async function renderStock(sym, tab) {
   document.title = `${sym} · ${t[1]} · IDX Lite`;
   view.innerHTML = `
     <section class="stock-head">
-      <div class="sh-top"><h1>${esc(sym)}${HSC_SET.has(sym) ? `<span class="hsc">HSC</span>` : ""}</h1><span class="nm">${esc(NAMES[sym] || "")}</span></div>
+      <div class="sh-top"><h1>${esc(sym)}${HSC_SET.has(sym) ? `<span class="hsc">HSC</span>` : ""}</h1><button class="star" data-watch="${esc(sym)}" aria-pressed="${watchHas(sym)}" title="Tambah ke / hapus dari watchlist saya">${watchHas(sym) ? "★" : "☆"}</button><span class="nm">${esc(NAMES[sym] || "")}</span></div>
       <div class="sh-px"><span class="px">${nf(s.price)}</span>${pct(s.change_pct)}<span class="muted">${esc(s.date)}</span></div>
     </section>
     ${HSC_SET.has(sym) ? hscFlag(sym) : ""}
@@ -220,6 +222,10 @@ $("#search").addEventListener("submit", (e) => {
 
 /* ---------- klik di dalam hasil ---------- */
 document.addEventListener("click", (e) => {
+  const w = e.target.closest("[data-watch]");
+  if (w) { const on = watchToggle(w.dataset.watch); w.textContent = on ? "★" : "☆"; w.setAttribute("aria-pressed", on); return; }
+  const u = e.target.closest("[data-unwatch]");
+  if (u) { watchToggle(u.dataset.unwatch); render(); return; }
   const g = e.target.closest("[data-go]");
   if (g) { e.preventDefault(); go(g.dataset.go); return; }
   const c = e.target.closest("[data-cmd]");
