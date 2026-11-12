@@ -77,8 +77,9 @@ gh workflow run harga.yml                           # jalankan ulang satu workfl
 1. `gh run list --workflow harga.yml --limit 3`
 2. **Tidak ada run hari ini:** jadwal GitHub terlewat. Jalankan `gh workflow run harga.yml`. Jadwal 19:30 juga menjadi cadangan otomatis.
 3. **Run merah:** buka lognya. Kalau isinya error dari Yahoo (rate limit, 429, timeout), tunggu 30–60 menit lalu jalankan ulang.
-4. **Run hijau tapi sesi masih kemarin:** Yahoo belum menerbitkan candle hari ini. Jalankan ulang setelah 19:00.
-5. **Hari libur bursa:** TELAT wajar, abaikan.
+4. **Sebagian saham tertinggal:** lihat bagian akhir log run harga (`sesi terbaru ...: N saham; tertinggal M` dan daftar kodenya), atau di laptop `./scripts/update_lokal.sh sync && python scripts/fetch_prices.py --check`. Skrip sudah mengulang saham yang tertinggal satu per satu dan memakai data intraday kalau candle harian Yahoo belum terbit; yang tersisa biasanya saham tanpa transaksi hari itu (wajar) atau Yahoo yang belum memperbarui, dan biasanya terkejar di run 19:30.
+5. **Run hijau tapi sesi masih kemarin:** Yahoo belum menerbitkan candle hari ini. Jalankan ulang setelah 19:00.
+6. **Hari libur bursa:** TELAT wajar, abaikan.
 
 ### Sinyal TELAT
 

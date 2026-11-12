@@ -257,7 +257,10 @@ def fundamental(f, price, med_pe, med_pb, sector_n):
     fetched = f.get("fetched")
     if fetched:
         try:
-            age = (datetime.now(timezone.utc) - datetime.fromisoformat(fetched.replace("Z", "+00:00"))).days
+            fd_ = datetime.fromisoformat(str(fetched).replace("Z", "+00:00"))
+            if fd_.tzinfo is None:          # fetch_fundamentals menyimpan tanggal saja (YYYY-MM-DD)
+                fd_ = fd_.replace(tzinfo=timezone.utc)
+            age = (datetime.now(timezone.utc) - fd_).days
             if age > 120:
                 warns.append(f"Data fundamental berumur {age} hari")
         except ValueError:
@@ -325,8 +328,11 @@ def main():
             sec = fd.get("sector")
             peers = by_sec.get(sec) if sec else None
             use_sec = peers and len(peers) >= 5
-            f = fundamental(fd, x["price"], statistics.median(peers) if use_sec else mkt_pe,
-                            mkt_pb, len(peers) if use_sec else 0)
+            try:
+                f = fundamental(fd, x["price"], statistics.median(peers) if use_sec else mkt_pe,
+                                mkt_pb, len(peers) if use_sec else 0)
+            except Exception as ex:
+                print(f"gagal fundamental {sym}: {ex}")
         if sym in hsc:
             for part in (t, f):
                 if part:

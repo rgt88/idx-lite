@@ -74,7 +74,7 @@ async function renderStock(sym, tab) {
   view.innerHTML = `
     <section class="stock-head">
       <div class="sh-top"><h1>${esc(sym)}${HSC_SET.has(sym) ? `<span class="hsc">HSC</span>` : ""}</h1><button class="star" data-watch="${esc(sym)}" aria-pressed="${watchHas(sym)}" title="Tambah ke / hapus dari watchlist saya">${watchHas(sym) ? "★" : "☆"}</button><span class="nm">${esc(NAMES[sym] || "")}</span></div>
-      <div class="sh-px"><span class="px">${nf(s.price)}</span>${pct(s.change_pct)}<span class="muted">${esc(s.date)}</span></div>
+      <div class="sh-px"><span class="px">${nf(s.price)}</span>${pct(s.change_pct)}<span class="muted">${esc(s.date)}${s.stale ? " · belum ada transaksi/data sesi terakhir" : ""}</span></div>
     </section>
     ${HSC_SET.has(sym) ? hscFlag(sym) : ""}
     <nav class="tabs" role="tablist" aria-label="Bagian">${TABS.map(([id, label]) =>
