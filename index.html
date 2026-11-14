@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDX Lite</title>
+<meta name="description" content="Pantau saham Indonesia: harga, teknikal, fundamental, foreign flow, broker summary dan saham HSC.">
+<meta name="theme-color" content="#173d66">
+<link rel="stylesheet" href="terminal.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="app">
+<header class="appbar">
+  <div class="appbar-in">
+    <a class="brand" href="#/"><b>idx</b>lite</a>
+    <form id="search" role="search" autocomplete="off">
+      <span class="ico" aria-hidden="true">⌕</span>
+      <input id="q" type="search" placeholder="Cari saham, mis. BBCA atau Bank Central" aria-label="Cari saham"
+             role="combobox" aria-expanded="false" aria-controls="qlist" aria-autocomplete="list" enterkeyhint="search">
+      <ul id="qlist" role="listbox" hidden></ul>
+    </form>
+    <a class="term" href="terminal.html" title="Mode terminal (ketik perintah)">Terminal</a>
+  </div>
+  <nav class="mainnav" aria-label="Menu utama">
+    <a href="#/" data-page="pasar">Pasar</a>
+    <a href="#/beli" data-page="beli">Time to Buy</a>
+    <a href="#/ai" data-page="ai">Laporan AI</a>
+    <a href="#/makro" data-page="makro">Makro</a>
+    <a href="#/foreign" data-page="foreign">Foreign</a>
+    <a href="#/broker" data-page="broker">Broker</a>
+    <a href="#/bandar" data-page="bandar">Bandar</a>
+    <a href="#/kepemilikan" data-page="kepemilikan">Kepemilikan</a>
+    <a href="#/screener" data-page="screener">Screener</a>
+    <a href="#/hsc" data-page="hsc">Saham HSC</a>
+  </nav>
+</header>
+
+<main id="view" tabindex="-1"></main>
+
+<footer class="foot">
+  <span id="fresh">Memuat status data…</span>
+  <span><a href="terminal.html">Mode terminal</a> · <a href="board.html">Papan tabel</a></span>
+  <span>Data tertunda dari Yahoo Finance, Indo Premier dan idx.co.id (lewat <a href="https://github.com/fzn0x/idx">idx</a>) serta Frankfurter. Hanya informasi, bukan saran investasi.</span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
