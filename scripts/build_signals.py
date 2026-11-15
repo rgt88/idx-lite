@@ -28,12 +28,13 @@ OUT = DATA / "signals.json"
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--min-value", type=float, default=1e9, help="rata-rata nilai transaksi 20 hari minimum (Rp)")
-ap.add_argument("--min-price", type=float, default=50)
+ap.add_argument("--min-price", type=float, default=0, help="harga minimum (bawaan 0 = semua harga, termasuk saham gocap)")
 ap.add_argument("--show", help="cetak rincian satu kode")
 args = ap.parse_args()
 
 RULES = {
-    "universe": f"Rata-rata nilai transaksi 20 hari ≥ Rp{args.min_value / 1e9:g} M, harga ≥ Rp{args.min_price:g}, "
+    "universe": f"Rata-rata nilai transaksi 20 hari ≥ Rp{args.min_value / 1e9:g} M, "
+                + (f"harga ≥ Rp{args.min_price:g}, " if args.min_price else "semua rentang harga, ") +
                 "data harga sesi terakhir. Saham HSC ikut dinilai bila likuid, dengan peringatan.",
     "technical": [
         "Tren (maks 30): harga > SMA50, SMA20 > SMA50, SMA50 > SMA200 (atau harga > SMA200).",

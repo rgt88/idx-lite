@@ -788,7 +788,7 @@ def("buy", "buy [gabungan|teknikal|fundamental|saya] [--semua]", "Watchlist time
     <button class="chip" data-cmd="${cmdOf(mode, all, !nohsc)}" aria-pressed="${nohsc}">Sembunyikan HSC</button></div>`;
   const head = `${tabs}${toggle}<p class="muted">${m.d}</p>`;
   const foot = `<details class="rules"><summary>Cara penilaian</summary>
-      <p><b>Saham yang dinilai:</b> ${esc(sig.rules.universe)} ${nf(sig.evaluated)} saham dinilai sesi ${esc(tgl(sig.session))}; ${nf(sig.with_fundamental)} punya data fundamental (bertambah 100 saham per hari).</p>
+      <p><b>Saham yang dinilai:</b> ${esc(sig.rules.universe)} ${nf(sig.evaluated)} saham dinilai sesi ${esc(tgl(sig.session))}; ${nf(sig.with_fundamental)} punya data fundamental (sisanya belum atau tidak tersedia di Yahoo).</p>
       ${["technical", "fundamental", "combined"].map((k) => `<p><b>${{ technical: "Teknikal", fundamental: "Fundamental", combined: "Gabungan" }[k]}</b></p><ul>${sig.rules[k].map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`).join("")}
       <p><b>Stop / target</b>: stop = yang lebih dekat antara 2× ATR14 di bawah harga dan low 10 hari; target = resistance 60 hari atau 2× risiko. <b>Sejak</b> = tanggal sinyal beli pertama muncul dan hasil sejak itu.</p>
     </details>

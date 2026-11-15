@@ -217,7 +217,7 @@ Jadwal `schedule` GitHub bersifat *best effort*: pada repo kita banyak jadwal ya
 
 ## Time to buy (watchlist sinyal beli)
 
-`scripts/build_signals.py` menilai setiap saham likuid (rata-rata nilai 20 hari ≥ Rp1 M, harga ≥ Rp50; saham HSC yang likuid ikut dinilai dengan peringatan) dari tiga sudut pandang, masing-masing skor 0–100:
+`scripts/build_signals.py` menilai setiap saham likuid (rata-rata nilai 20 hari ≥ Rp1 M, semua rentang harga; saham HSC yang likuid ikut dinilai dengan peringatan) dari tiga sudut pandang, masing-masing skor 0–100:
 
 - **Teknikal** dari `prices/`: tren (SMA20/50/200), momentum (RSI, MACD), setup masuk (breakout 20 hari bervolume, pullback ke MA20 di tren naik, rebound dari oversold, MACD cross, golden cross), volume; penalti overbought dan harga terlalu jauh dari MA20. Stop = yang lebih dekat antara 2× ATR14 dan low 10 hari; target = resistance 60 hari atau 2× risiko.
 - **Fundamental** dari `fundamentals.json`: ROE, pertumbuhan pendapatan/laba YoY, P/E dibanding median sektor (Yahoo `sector`, minimal 5 saham; selain itu median pasar), P/B, PEG, target dan rekomendasi analis, dividen. Saham rugi dikeluarkan.
