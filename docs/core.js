@@ -749,6 +749,98 @@ def("macro", "macro", "Indikator makro dengan grafik tren: USD/IDR, IHSG, minyak
   requestAnimationFrame(() => setRange("3M"));
 }, ["makro"]);
 
+/* ---------- berita & tema dampak sektor (scripts/fetch_news.py) ---------- */
+const ago = (iso) => {
+  const m = (Date.now() - new Date(iso)) / 60000;
+  return m < 60 ? `${Math.max(1, Math.round(m))} mnt lalu` : m < 1440 ? `${Math.round(m / 60)} jam lalu` : `${Math.round(m / 1440)} hari lalu`;
+};
+const strengthLabel = (v) => { const a = Math.abs(v); return a >= 1 ? "kuat" : a >= 0.5 ? "sedang" : "lemah"; };
+const arrow = (dir) => (dir === "up" ? "↑" : dir === "down" ? "↓" : "→");
+const sentTag = (code, sent, why) => `<a class="tag ${sent > 0.15 ? "bull" : sent < -0.15 ? "bear" : ""}" data-go="#/s/${esc(code)}/berita" title="${esc(why || "")}">${esc(code)}${sent > 0.15 ? " +" : sent < -0.15 ? " −" : ""}</a>`;
+let THEME_LABEL = {};
+function articleRow(a, opts = {}) {
+  const ks = (a.k || []).map(([c, s, , w]) => sentTag(c, s, w)).join("");
+  const th = (a.th || []).map(([id, dir, , w]) => `<span class="tag theme" title="${esc(w || "")}">${esc(THEME_LABEL[id] || id)} ${arrow(dir)}</span>`).join("");
+  return `<li class="news-item">
+    <a class="news-t" href="${esc(a.u)}" target="_blank" rel="noopener noreferrer">${esc(a.t)}</a>
+    <div class="news-m muted">${esc(a.s)} · ${esc(ago(a.d))}${a.ai ? "" : " · ditandai kata kunci"}${opts.why ? ` · <i>${esc(opts.why)}</i>` : ""}</div>
+    ${ks || th ? `<div class="tags">${ks}${th}</div>` : ""}</li>`;
+}
+async function newsData() {
+  const [arts, th, meta] = await Promise.all([getJSON("news/articles.json", true), getJSON("news/themes.json", true), getJSON("news/meta.json", true)]);
+  need(arts?.articles, "Data berita belum ada. Diambil otomatis beberapa kali sehari (workflow berita).");
+  (th?.themes || []).forEach((t) => (THEME_LABEL[t.id] = t.label));
+  const cfg = await getJSON("themes.json", true);
+  (cfg?.themes || []).forEach((t) => (THEME_LABEL[t.id] = t.label));
+  return { arts: arts.articles, byId: Object.fromEntries(arts.articles.map((a) => [a.id, a])), themes: th?.themes || [], unmapped: th?.unmapped || [], meta };
+}
+const groupLine = (g, cls) => `<div class="tg ${cls}"><b>${esc(g.label)}</b> ${g.symbols.slice(0, 10).map((x) => symLink(x)).join(" ")}${g.symbols.length > 10 ? ` <span class="muted">+${g.symbols.length - 10}</span>` : ""}</div>`;
+function themeCard(t, byId) {
+  const up = t.dir === "up";
+  const posSide = up ? t.pos : t.neg, negSide = up ? t.neg : t.pos;   // arah dampak mengikuti arah tema
+  const ck = t.check || {};
+  const ckTxt = ck.verdict ? `<p class="note"><b>Cek pasar</b> sejak ${esc(tgl(t.first))}: ${posSide.length ? `kelompok positif ${pct(up ? ck.pos : ck.neg)}` : ""}${posSide.length && negSide.length ? " · " : ""}${negSide.length ? `kelompok negatif ${pct(up ? ck.neg : ck.pos)}` : ""} → <b>${esc(ck.verdict)}</b></p>`
+    : `<p class="note">Cek pasar: belum ada data harga setelah berita pertama (${esc(tgl(t.first))}).</p>`;
+  const arts = (t.articles || []).slice(0, 3).map((id) => byId[id]).filter(Boolean);
+  return `<article class="ti theme-card">
+    <div class="ti-h"><b class="theme-name">${esc(t.label)} ${arrow(t.dir)}</b><span class="tag">${strengthLabel(t.score)} · ${nf(t.n)} berita</span></div>
+    <p class="muted">${esc(t.why || "")}</p>
+    ${posSide.map((g) => groupLine(g, "pos")).join("")}${negSide.map((g) => groupLine(g, "neg")).join("")}
+    ${!posSide.length && !negSide.length ? `<p class="muted">Belum ada peta sektor untuk arah ini.</p>` : ""}
+    ${ckTxt}
+    ${arts.length ? `<ul class="news-list compact">${arts.map((a) => articleRow(a)).join("")}</ul>` : ""}
+  </article>`;
+}
+
+def("news", "news [tema|terbaru] [--ai]", "Berita pasar 7 hari terakhir dan tema penggeraknya, dengan perkiraan sektor yang terdampak positif dan negatif.", async (a) => {
+  const D = await newsData();
+  const mode = ["tema", "terbaru"].includes(String(a.pos[0] || "").toLowerCase()) ? String(a.pos[0]).toLowerCase() : "tema";
+  const tabs = `<div class="seg wrap" role="group">${[["tema", "Tema & dampak sektor"], ["terbaru", "Berita terbaru"]].map(([id, l]) =>
+    `<button data-cmd="news ${id}" aria-pressed="${id === mode}">${l}</button>`).join("")}</div>`;
+  const feeds = Object.entries(D.meta?.feeds || {});
+  const bad = feeds.filter(([, v]) => !String(v).startsWith("ok"));
+  const foot = `<details class="rules"><summary>Sumber & cara kerja</summary>
+      <p>Judul dan ringkasan diambil dari RSS ${nf(feeds.length)} sumber${bad.length ? ` (${nf(bad.length)} sedang gagal: ${bad.map(([k]) => esc(k)).join(", ")})` : ""}. Isi artikel tidak disalin; ketuk judul untuk membaca di situs aslinya.</p>
+      <p>AI menandai kode saham yang dibahas (sentimen positif/negatif) dan tema penggerak beserta arahnya. Dampak ke sektor <b>tidak</b> ditebak AI: diambil dari tabel tema (<code>docs/data/themes.json</code>) yang kita susun dan bisa diubah. Kekuatan tema = jumlah berita × kekuatan, meluruh setengahnya tiap 3 hari.</p>
+      <p><b>Cek pasar</b> membandingkan rata-rata pergerakan saham kelompok positif dan negatif sejak berita pertama tema itu: <i>sesuai</i>, <i>berlawanan</i>, atau <i>belum terlihat</i>.</p>
+      <p class="muted">${nf(D.meta?.articles)} berita, ${nf(D.meta?.ai_tagged)} baru ditandai AI di run terakhir. ${D.meta?.ai_info && !String(D.meta.ai_info).includes("gemini") && !String(D.meta.ai_info).includes("/") ? esc(D.meta.ai_info) : ""}</p>
+    </details><p class="note">Perkiraan arah dampak berbasis aturan, bukan besar dampak dan bukan saran investasi. Diperbarui ${wib(D.meta?.updated)}.</p>`;
+  if (mode === "terbaru") {
+    const only = !!a.flags.ai;
+    const list = D.arts.filter((x) => !only || (x.k?.length || x.th?.length)).slice(0, 120);
+    const chips = `<div class="chips">${[[false, "Semua"], [true, "Yang menyebut saham/tema"]].map(([v, l]) =>
+      `<button class="chip" data-cmd="news terbaru${v ? " --ai" : ""}" aria-pressed="${v === only}">${l}</button>`).join("")}</div>`;
+    return `${tabs}${chips}<ul class="news-list">${list.map((x) => articleRow(x)).join("") || `<li class="muted">Belum ada berita.</li>`}</ul>${foot}`;
+  }
+  const act = D.themes.filter((t) => t.active && t.dir !== "flat");
+  const quiet = D.themes.filter((t) => !t.active || t.dir === "flat");
+  return `${tabs}<p class="muted">Tema yang paling banyak dibahas 7 hari terakhir, dan sektor yang diperkirakan terkena dampaknya.</p>
+    ${act.length ? `<div class="tlist">${act.map((t) => themeCard(t, D.byId)).join("")}</div>` : `<div class="empty">Belum ada tema yang cukup kuat minggu ini.</div>`}
+    ${quiet.length ? `<p class="muted">Tema lemah: ${quiet.map((t) => `${esc(t.label)} ${arrow(t.dir)} (${nf(t.n)})`).join(" · ")}</p>` : ""}
+    ${D.unmapped.length ? `<p class="muted">Tema tanpa peta sektor (bisa ditambahkan ke themes.json): ${D.unmapped.slice(0, 8).map((u) => `${esc(u.label)} (${nf(u.n)})`).join(" · ")}</p>` : ""}
+    ${foot}`;
+}, ["berita", "tema"]);
+
+def("stocknews", "stocknews KODE", "Berita yang menyebut saham ini dan tema berita yang diperkirakan memengaruhinya.", async (a) => {
+  const sym = String(a.pos[0] || "").toUpperCase();
+  need(sym, "Tulis kodenya, mis. stocknews PTBA");
+  const D = await newsData();
+  const imp = (await getJSON("news/impact.json", true))?.stocks?.[sym];
+  const direct = D.arts.filter((x) => (x.k || []).some(([c]) => c === sym));
+  const thMap = Object.fromEntries(D.themes.map((t) => [t.id, t]));
+  const effects = (imp?.themes || []).filter((t, i, xs) => xs.findIndex((y) => y.id === t.id) === i);
+  const eff = effects.length ? `<div class="ai-card"><div class="ai-head"><b>Terdampak tema</b><a class="muted" data-cmd="news tema">semua tema</a></div>
+      ${effects.map((t) => `<div class="ttb-row"><span class="tag ${t.effect > 0 ? "bull" : "bear"}">${t.effect > 0 ? "Positif" : "Negatif"}</span> <b>${esc(t.label)} ${arrow(t.dir)}</b> <span class="muted">sebagai ${esc(t.group)} · ${strengthLabel(t.effect)}</span></div>
+        <p class="note">${esc(thMap[t.id]?.why || "")}</p>`).join("")}
+      <p class="note">Perkiraan dari tabel tema, bukan dari berita yang menyebut ${esc(sym)} langsung.</p></div>` : "";
+  const themeArts = effects.flatMap((t) => (thMap[t.id]?.articles || []).slice(0, 3)).map((id) => D.byId[id]).filter((x) => x && !direct.includes(x));
+  const dRows = direct.map((x) => { const k = x.k.find(([c]) => c === sym); return articleRow(x, { why: k?.[3] }); }).join("");
+  return `${eff}
+    <h3>Menyebut ${esc(sym)} langsung</h3>${dRows ? `<ul class="news-list">${dRows}</ul>` : `<p class="muted">Tidak ada berita 7 hari terakhir yang menyebut ${esc(sym)}.</p>`}
+    ${themeArts.length ? `<h3>Berita tema terkait</h3><ul class="news-list">${themeArts.slice(0, 8).map((x) => articleRow(x)).join("")}</ul>` : ""}
+    <p class="note">Ditandai AI dari judul dan ringkasan; bisa keliru. Bukan saran investasi.</p>`;
+}, ["beritasaham"]);
+
 /* ---------- watchlist saya (disimpan di browser) + time to buy (scripts/build_signals.py) ---------- */
 const WKEY = "idxlite.watch";
 const watchList = () => { try { return JSON.parse(localStorage.getItem(WKEY) || "[]"); } catch (e) { return []; } };
@@ -766,6 +858,8 @@ const ST_LABEL = { beli: "Sinyal beli", pantau: "Pantau" };
 const stBadge = (x) => (x?.status ? `<span class="st st-${x.status}">${ST_LABEL[x.status]}</span>` : `<span class="muted">–</span>`);
 const scoreBar = (v) => (isNum(v) ? `<span class="score" title="Skor ${v}/100"><span class="trk"><i style="width:${Math.max(4, v)}%"></i></span><b>${v}</b></span>` : "–");
 let SIG_SESSION = null;
+const newsTags = (r) => (r.news ? [...r.news.pos.map((t) => `<a class="tag bull" data-go="#/s/${esc(r.symbol)}/berita">📰 ${esc(t)}</a>`),
+  ...r.news.neg.map((t) => `<a class="tag bear" data-go="#/s/${esc(r.symbol)}/berita">📰 ${esc(t)}</a>`)].join("") : "");
 const sinceTxt = (x) => (!x?.since ? "" : x.since === SIG_SESSION ? `<span class="since muted">baru hari ini</span>`
   : `<span class="since"><span class="muted">sejak ${esc(tgl(x.since))}</span> ${pct(x.since_ret, 1)}</span>`);
 const levels = (t) => (t ? `<span class="lv">${nf(t.stop)} <span class="muted">/</span> ${nf(t.target)}</span>` : "–");
@@ -802,7 +896,7 @@ def("buy", "buy [gabungan|teknikal|fundamental|saya] [--semua]", "Watchlist time
   const item = (r, x, metrics, tags, extra = "") => `<article class="ti">
       <div class="ti-h"><div>${watchHas(r.symbol) ? "★ " : ""}${symLink(r.symbol)} <span class="ti-px">${nf(r.price)}</span> ${pct(r.chg)}</div>
         <div class="ti-s">${stBadge(x)} ${scoreBar(x && !x.excluded ? x.score : null)}</div></div>
-      ${sinceTxt(x)}${extra}${mini(metrics)}<div class="tags">${tags}</div></article>`;
+      ${sinceTxt(x)}${extra}${mini(metrics)}<div class="tags">${tags}${newsTags(r)}</div></article>`;
 
   if (mode === "saya") {
     const w = watchList();
@@ -840,7 +934,7 @@ async function ttbCard(sym) {
     ${line("Gabungan", e.c)}
     ${line("Teknikal", e.t, e.t ? ` <span class="muted">stop ${nf(e.t.stop)} · target ${nf(e.t.target)} · R:R ${nf(e.t.rr, 1)}</span>` : "")}
     ${line("Fundamental", e.f)}
-    <div class="tags">${why(e.t)}${why(e.f)}</div>
+    <div class="tags">${why(e.t)}${why(e.f)}${newsTags({ ...e, symbol: sym })}</div>
     <p class="note">Skor 0–100 dari aturan sederhana, sesi ${esc(tgl(sig.session))}. Bukan saran investasi.</p></div>`;
 }
 

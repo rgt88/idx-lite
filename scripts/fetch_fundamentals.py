@@ -154,6 +154,7 @@ def snapshot(info):
         "mcap": num(info.get("marketCap"), 0),
         "currency": info.get("financialCurrency"),
         "sector": info.get("sector"),
+        "industry": info.get("industry"),
     }
 
 
@@ -178,7 +179,7 @@ else:
         e = stocks.get(s, {})
         if not e.get("fetched"):
             return (0, "")              # belum pernah diambil
-        if e.get("v") != VERSION or "sector" not in e:
+        if e.get("v") != VERSION or "sector" not in e or "industry" not in e:
             return (1, e["fetched"])    # format lama / belum ada sektor
         return (2, e["fetched"])        # lalu yang paling lama
     todo = sorted(universe(), key=staleness)
@@ -189,7 +190,7 @@ else:
 
 def incomplete():
     """Saham yang belum pernah diambil atau formatnya lama (untuk mode isi semua)."""
-    return sum(1 for s in universe() if not stocks.get(s, {}).get("fetched") or stocks[s].get("v") != VERSION or "sector" not in stocks[s])
+    return sum(1 for s in universe() if not stocks.get(s, {}).get("fetched") or stocks[s].get("v") != VERSION or "sector" not in stocks[s] or "industry" not in stocks[s])
 
 
 def save():
@@ -223,7 +224,7 @@ for n, sym in enumerate(todo):
         an = analyst(t, info)
         if not q and not a and snap["pe"] is None and snap["mcap"] is None:
             print(f"kosong {sym}")
-            stocks[sym] = {"fetched": now, "n_quarters": 0, "v": VERSION, "sector": None}
+            stocks[sym] = {"fetched": now, "n_quarters": 0, "v": VERSION, "sector": None, "industry": None}
             continue
         (FD / f"{sym}.json").write_text(json.dumps(
             {"symbol": sym, "fetched": now, "currency": snap["currency"], "quarters": q, "annual": a, "analyst": an},

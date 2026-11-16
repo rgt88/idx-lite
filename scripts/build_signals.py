@@ -273,6 +273,26 @@ def fundamental(f, price, med_pe, med_pb, sector_n):
             "med_pe": r(med_pe, 1), "peer": peer}
 
 
+def news_note(n):
+    """Ringkasan berita 7 hari untuk Time to Buy: hanya peringatan/penanda, tidak mengubah skor."""
+    if not n:
+        return None
+    pos, neg = [], []
+    best = {}
+    for th in n.get("themes", []):
+        if abs(th["effect"]) >= 0.5 and abs(th["effect"]) > abs(best.get(th["id"], {}).get("effect", 0)):
+            best[th["id"]] = th
+    for th in best.values():
+        arrow = "↑" if th["dir"] == "up" else "↓"
+        (pos if th["effect"] > 0 else neg).append(f"Tema {th['label']} {arrow}")
+    d = n.get("score_direct", 0)
+    if d >= 0.4:
+        pos.append("Berita langsung cenderung positif")
+    elif d <= -0.4:
+        neg.append("Berita langsung cenderung negatif")
+    return {"pos": pos[:3], "neg": neg[:3]} if pos or neg else None
+
+
 def combined(t, f):
     if not t or not f or f.get("excluded"):
         return None
@@ -292,6 +312,7 @@ def main():
     fund = (load(DATA / "fundamentals.json", {}) or {}).get("stocks", {})
     hsc = set((load(DATA / "hsc.json", {}) or {}).get("codes", []))
     prev = (load(OUT, {}) or {}).get("stocks", {})
+    news = (load(DATA / "news" / "impact.json", {}) or {}).get("stocks", {})
     session = max(x["date"] for x in summ["stocks"])
 
     # median P/E dan P/B per sektor (minimal 5 saham), cadangan median pasar
@@ -340,6 +361,9 @@ def main():
                     part["warnings"].insert(0, HSC_WARN)
         c = combined(t, f)
         e = {"price": x["price"], "chg": x.get("change_pct"), "value20": round(val20), "t": t, "f": f, "c": c}
+        nw = news_note(news.get(sym))
+        if nw:
+            e["news"] = nw
         if sym in hsc:
             e["hsc"] = True
 

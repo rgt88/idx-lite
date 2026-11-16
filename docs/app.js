@@ -4,9 +4,11 @@
 const TABS = [
   ["ringkasan", "Ringkasan", "brief"], ["teknikal", "Teknikal", "technical"], ["fundamental", "Fundamental", "fundamental"],
   ["analis", "Analis", "analyst"], ["kepemilikan", "Kepemilikan", "ownership"], ["broker", "Broker", "broker"], ["foreign", "Foreign", "foreign"], ["bandar", "Bandar", "bandar"],
+  ["berita", "Berita", "stocknews"],
 ];
 const PAGES = {
   pasar: { title: "Pasar hari ini", desc: "Indikator makro, saham naik dan turun terbanyak, yang paling aktif, aliran dana asing, dan broker teratas.", cmd: "market" },
+  berita: { title: "Berita & tema", desc: "Berita pasar 7 hari terakhir, tema penggeraknya (harga komoditas, rupiah, suku bunga, kebijakan), dan sektor yang diperkirakan terdampak positif atau negatif.", cmd: "news" },
   beli: { title: "Time to buy", desc: "Watchlist saham yang sedang memberi sinyal beli menurut teknikal, fundamental, atau keduanya. Dihitung ulang setiap sore setelah harga diperbarui.", cmd: "buy" },
   ai: { title: "Laporan AI", desc: "Laporan otomatis setelah sesi 1 dan setelah penutupan: angka dihitung skrip, narasinya ditulis AI. Juga dikirim ke Telegram.", cmd: "ai" },
   makro: { title: "Makro", desc: "Kurs, IHSG, minyak, yield SBN dan CDS, dengan grafik tren.", cmd: "macro" },
@@ -18,8 +20,8 @@ const PAGES = {
   hsc: { title: "Saham HSC", desc: "Saham dengan kepemilikan sangat terkonsentrasi menurut BEI. Free float-nya kecil, jadi harganya mudah bergerak tajam.", cmd: "hsc" },
   x: { title: "Hasil", desc: "", cmd: null },
 };
-const TAB_OF = { quote: "ringkasan", brief: "ringkasan", technical: "teknikal", fundamental: "fundamental", analyst: "analis", ownership: "kepemilikan", broker: "broker", foreign: "foreign", bandar: "bandar" };
-const PAGE_OF = { buy: "beli", ai: "ai", market: "pasar", macro: "makro", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc", ownership: "kepemilikan" };
+const TAB_OF = { quote: "ringkasan", brief: "ringkasan", technical: "teknikal", fundamental: "fundamental", analyst: "analis", ownership: "kepemilikan", broker: "broker", foreign: "foreign", bandar: "bandar", stocknews: "berita" };
+const PAGE_OF = { news: "berita", buy: "beli", ai: "ai", market: "pasar", macro: "makro", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc", ownership: "kepemilikan" };
 
 const view = $("#view");
 

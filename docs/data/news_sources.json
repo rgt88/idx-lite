@@ -1,0 +1,17 @@
+{
+  "_cara_pakai": "Daftar feed RSS berita. Feed yang gagal tidak menghentikan proses; statusnya tercatat di news/meta.json dan tampil di halaman Berita. Matikan feed dengan \"on\": false, tambah feed baru dengan url RSS-nya. Google News dipakai sebagai cadangan agregator (mencakup Kontan, Bisnis, IDX Channel, Investor Daily, dll.).",
+  "feeds": [
+    {"name": "CNBC Indonesia Market", "url": "https://www.cnbcindonesia.com/market/rss/", "on": true},
+    {"name": "CNBC Indonesia News", "url": "https://www.cnbcindonesia.com/news/rss", "on": true},
+    {"name": "Detik Finance", "url": "https://finance.detik.com/rss", "on": true},
+    {"name": "Liputan6 Bisnis", "url": "https://feed.liputan6.com/rss/bisnis", "on": true},
+    {"name": "Tempo Bisnis", "url": "https://rss.tempo.co/bisnis", "on": true},
+    {"name": "Antara Ekonomi", "url": "https://www.antaranews.com/rss/ekonomi.xml", "on": true},
+    {"name": "Okezone Economy", "url": "https://sindikasi.okezone.com/index.php/rss/11/RSS2.0", "on": true},
+    {"name": "Republika Ekonomi", "url": "https://www.republika.co.id/rss/ekonomi/", "on": true},
+    {"name": "Google News: saham", "url": "https://news.google.com/rss/search?q=saham+emiten+when:1d&hl=id&gl=ID&ceid=ID:id", "on": true},
+    {"name": "Google News: IHSG", "url": "https://news.google.com/rss/search?q=IHSG+when:1d&hl=id&gl=ID&ceid=ID:id", "on": true},
+    {"name": "Google News: komoditas", "url": "https://news.google.com/rss/search?q=harga+batubara+OR+CPO+OR+nikel+OR+minyak+when:1d&hl=id&gl=ID&ceid=ID:id", "on": true},
+    {"name": "Google News: makro", "url": "https://news.google.com/rss/search?q=rupiah+OR+%22BI+rate%22+OR+inflasi+when:1d&hl=id&gl=ID&ceid=ID:id", "on": true}
+  ]
+}

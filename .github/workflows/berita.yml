@@ -1,0 +1,36 @@
+name: berita
+# Berita pasar dari RSS + penandaan AI (saham, sentimen, tema) + dampak tema ke sektor -> data/news/.
+# Dipicu pengatur (±tiap 4 jam di hari bursa) dengan jadwal cadangan 07:17, 12:17, 17:17 WIB setiap hari.
+# Memakai secret AI yang sama dengan laporan AI (AI_API_KEY; opsional variabel AI_BASE_URL, AI_MODEL).
+on:
+  schedule:
+    - cron: "17 0,5,10 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: data-berita
+  cancel-in-progress: false
+jobs:
+  berita:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/restore
+        with:
+          paths: |
+            data/news
+            data/fundamentals.json
+            data/prices
+      - name: Ambil dan tandai berita
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+        run: timeout 15m python scripts/fetch_news.py
+      - uses: ./.github/actions/publish
+        with:
+          paths: data/news
+          message: berita

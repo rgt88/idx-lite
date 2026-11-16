@@ -131,3 +131,16 @@ td .tags { min-width: 240px; flex-wrap: wrap; }
 .tm i { font-style: normal; color: var(--muted); }
 .ti .tags { margin-top: 4px; }
 @media (max-width: 400px) { .tlist { grid-template-columns: 1fr; } }
+
+.news-list { list-style: none; padding: 0; margin: 8px 0; }
+.news-item { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.news-list.compact .news-item { padding: 6px 0; }
+.news-t { font-weight: 600; color: inherit; text-decoration: none; line-height: 1.4; }
+.news-t:hover { text-decoration: underline; }
+.news-m { font-size: .8rem; margin: 2px 0 4px; }
+.tag.theme { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.theme-card .theme-name { font-size: 1.02rem; }
+.tg { margin: 4px 0; font-size: .9rem; line-height: 1.7; }
+.tg b { margin-right: 4px; }
+.tg.pos b { color: var(--up); }
+.tg.neg b { color: var(--down); }

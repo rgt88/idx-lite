@@ -150,6 +150,19 @@ else:
         f"sesi {sg['session']}, {sg.get('evaluated')} saham dinilai; sinyal beli gabungan {cn.get('combined', {}).get('beli')}, "
         f"teknikal {cn.get('technical', {}).get('beli')}, fundamental {cn.get('fundamental', {}).get('beli')}")
 
+# berita & tema
+nm = get("news/meta.json")
+if not nm:
+    add("berita", "BELUM ADA", "news/meta.json belum ada (workflow berita belum pernah jalan?)")
+else:
+    ts = parse_ts(nm.get("updated"))
+    feeds = nm.get("feeds") or {}
+    bad_f = [k for k, v in feeds.items() if not str(v).startswith("ok")]
+    stale = ts is None or NOW - ts > timedelta(hours=8)
+    add("berita", "TELAT" if stale else ("SEBAGIAN" if bad_f else "OK"),
+        f"diperbarui {age(ts)}; {nm.get('articles')} berita, {nm.get('ai_tagged')} baru ditandai AI"
+        + (f"; feed gagal: {', '.join(bad_f)[:100]}" if bad_f else ""))
+
 # laporan AI + Telegram
 ai = get("ai/index.json")
 if not ai or not ai.get("reports"):
@@ -176,7 +189,7 @@ for name, state, detail in rows:
 
 if args.runs:
     print("\nRun terakhir tiap workflow:")
-    for wf in ("pengatur", "makro", "harga", "fundamental", "sinyal", "kepemilikan", "brief", "flow", "ai", "site", "uji"):
+    for wf in ("pengatur", "makro", "harga", "fundamental", "sinyal", "kepemilikan", "brief", "flow", "berita", "ai", "site", "uji"):
         try:
             out = subprocess.run(["gh", "run", "list", "--workflow", f"{wf}.yml", "--limit", "1", "--json",
                                   "status,conclusion,createdAt,event,databaseId"], capture_output=True, text=True, timeout=30)

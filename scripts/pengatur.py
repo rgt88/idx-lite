@@ -118,6 +118,10 @@ def main():
     if at(7, 30) and not at(21, 30):
         consider("makro.yml", start=(7, 30), max_tries=12, gap=30, interval=110, reason="interval 2 jam")
 
+    # berita: tiap ±4 jam antara 07:00 dan 21:00
+    if at(7, 0) and not at(21, 0):
+        consider("berita.yml", start=(7, 0), max_tries=8, gap=30, interval=230, reason="interval 4 jam")
+
     # laporan AI sesi 1: 12:10-13:25 (Jumat 11:40-13:55)
     ai = live("ai/index.json") or {"reports": []}
     have = {r["id"] for r in ai.get("reports", [])}

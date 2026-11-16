@@ -88,6 +88,7 @@ Setiap sumber data punya workflow sendiri. Kalau satu sumber error atau lambat, 
 | brief | `brief.yml` | 17:15 | `brief/`, `brief_index.json` |
 | foreign-broker | `flow.yml` | 19:30 | `flow/` |
 | sinyal | `sinyal.yml` | setiap kali harga/fundamental selesai sukses; cadangan 17:40 dan 20:15 | `signals.json` |
+| berita | `berita.yml` | dipicu pengatur ±tiap 4 jam (07:00–21:00); cadangan 07:17, 12:17, 17:17 setiap hari | `news/` |
 | laporan-ai | `ai.yml` | 12:10 Sen–Kam, 11:40 Jum (sesi 1); 17:05 (penutupan) | `ai/` + pesan Telegram |
 
 Menjalankan ulang satu bagian: `gh workflow run harga.yml` (atau tombol *Run workflow* di tab Actions). Menjalankan semuanya: `./scripts/jalankan_semua.sh`.
@@ -130,6 +131,12 @@ Kalau skrip gagal total, publish tidak dijalankan dan situs tetap menampilkan da
 | `brief/KODE.json` | Isi `idx stocks brief` (`idx.brief.v1`) | fetch_brief |
 | `brief_index.json` | Kapan brief tiap saham terakhir diambil | fetch_brief |
 | `signals.json` | Skor & status time to buy (teknikal, fundamental, gabungan) per saham likuid, urutan daftar, aturan, tanggal sinyal pertama muncul | build_signals |
+| `news/articles.json` | Berita 7 hari: judul, sumber, tautan, tanggal, ringkasan pendek, kode saham + sentimen, tema + arah | fetch_news |
+| `news/themes.json` | Tema aktif: skor, arah, kelompok sektor positif/negatif, cek pasar, tema tanpa peta | fetch_news |
+| `news/impact.json` | Dampak per saham: berita langsung + efek tema | fetch_news |
+| `news/meta.json` | Status tiap feed, jumlah berita, status AI | fetch_news |
+| `themes.json` | **Tabel tema → sektor** (diisi manual, dilacak di `main`) | manusia |
+| `news_sources.json` | Daftar feed RSS (diisi manual, dilacak di `main`) | manusia |
 | `ai/index.json` | Daftar laporan (maks 120) | ai_report |
 | `ai/<tanggal>-sesi1.json`, `ai/<tanggal>-full.json` | Angka laporan, teks AI, model, status kirim Telegram | ai_report |
 | `ai/latest.json` | Laporan terbaru (dipakai halaman Pasar) | ai_report |
@@ -207,11 +214,25 @@ Dari lampiran PDF, skrip membaca nomor pengumuman, tanggal pengumuman, tanggal e
 
 Push ke `main` langsung menerbitkan ulang situs. Skrip mencetak saham yang masuk dan keluar dibanding daftar sebelumnya, jadi hasilnya bisa dicek sebelum push. Hitungan hari bursa efektif tidak memperhitungkan hari libur bursa; cocokkan dengan teks pengumuman.
 
+## Berita dan tema dampak sektor
+
+`scripts/fetch_news.py` (workflow `berita`):
+
+1. Mengambil feed RSS di `docs/data/news_sources.json` (portal berita + pencarian Google News sebagai agregator). Hanya judul, ringkasan pendek, tanggal, dan tautan yang disimpan; isi artikel tidak disalin. Feed yang gagal dicatat di `news/meta.json` tanpa menghentikan proses.
+2. Duplikat (judul sama dari beberapa sumber) dan berita lebih dari 7 hari dibuang.
+3. Berita baru ditandai AI dalam kelompok 25 (maks 150 per run): kode saham yang dibahas + sentimen dan relevansi, dan tema dari `themes.json` + arah (up/down) dan kekuatan. Kode divalidasi terhadap `symbols.txt`; tema di luar daftar dicatat sebagai *tema tanpa peta*. Tanpa AI: penanda kata kunci sederhana.
+4. Skor tema = Σ arah × kekuatan, meluruh setengahnya tiap 3 hari. Dampak ke sektor **tidak** ditentukan AI: tema dipetakan ke grup saham lewat `themes.json` (grup `pos` searah, `neg` berlawanan; arah turun membalik keduanya). Grup berisi daftar kode dan opsional industri Yahoo (`industry` dari fundamental).
+5. *Cek pasar*: rata-rata pergerakan saham grup positif dan negatif sejak berita pertama tema itu → sesuai / berlawanan / belum terlihat. Ini cara menilai apakah tabel tema masuk akal.
+
+Tampil di menu **Berita** (Tema & dampak sektor, Berita terbaru), tab **Berita** di halaman saham (menyebut langsung + terdampak tema), dan penanda 📰 di Time to Buy (`build_signals.py` membaca `news/impact.json`; hanya penanda, tidak mengubah skor).
+
+Mengubah peta dampak: edit `docs/data/themes.json` lalu push; berlaku di run berita berikutnya.
+
 ## Pengatur jadwal, alarm, dan uji
 
 Jadwal `schedule` GitHub bersifat *best effort*: pada repo kita banyak jadwal yang tidak pernah terpicu. Karena itu:
 
-- **`pengatur`** (`scripts/pengatur.py`) jalan setiap ±20 menit (jadwal GitHub di menit 07/27/47, ditambah pemicu luar cron-job.org lewat `workflow_dispatch`). Ia melihat jam WIB, riwayat run hari ini, dan data di `gh-pages`, lalu memicu bagian yang sudah waktunya tetapi belum sukses hari ini. Aturannya: makro tiap ±2 jam (07:30–21:30); laporan sesi 1 12:10–13:25 (Jumat 11:40–13:55); harga mulai 16:25, diulang tiap 60 menit (maks 4×) selama sesi hari ini belum tayang; fundamental 16:45, kepemilikan 17:00, brief 17:15 (sekali sehari, maks 2 percobaan); sinyal kalau tertinggal dari harga; laporan penutupan setelah harga hari ini tayang (paling lambat 18:30); foreign-broker 19:30. Yang sedang jalan atau sudah terlalu sering dicoba dilewati, jadi aman dipicu berkali-kali. Jadwal lama di tiap workflow tetap ada sebagai cadangan; laporan AI tidak dikirim dua kali untuk hari dan jenis yang sama.
+- **`pengatur`** (`scripts/pengatur.py`) jalan setiap ±20 menit (jadwal GitHub di menit 07/27/47, ditambah pemicu luar cron-job.org lewat `workflow_dispatch`). Ia melihat jam WIB, riwayat run hari ini, dan data di `gh-pages`, lalu memicu bagian yang sudah waktunya tetapi belum sukses hari ini. Aturannya: makro tiap ±2 jam (07:30–21:30); berita tiap ±4 jam (07:00–21:00); laporan sesi 1 12:10–13:25 (Jumat 11:40–13:55); harga mulai 16:25, diulang tiap 60 menit (maks 4×) selama sesi hari ini belum tayang; fundamental 16:45, kepemilikan 17:00, brief 17:15 (sekali sehari, maks 2 percobaan); sinyal kalau tertinggal dari harga; laporan penutupan setelah harga hari ini tayang (paling lambat 18:30); foreign-broker 19:30. Yang sedang jalan atau sudah terlalu sering dicoba dilewati, jadi aman dipicu berkali-kali. Jadwal lama di tiap workflow tetap ada sebagai cadangan; laporan AI tidak dikirim dua kali untuk hari dan jenis yang sama.
 - **`alarm`** mengirim pesan Telegram setiap workflow data selesai dengan status gagal, lengkap dengan tautan log.
 - **`uji`** jalan setiap push: cek sintaks Python/JS/YAML lalu menjalankan `build_signals.py` dan `pengatur.py --dry-run` dengan data yang sedang tayang (hasil tidak diterbitkan). Kalau merah, alarm berbunyi sebelum jadwal sore memakai kode yang rusak.
 
@@ -246,6 +267,7 @@ Tanpa `AI_API_KEY` atau saat layanan AI gagal, laporan tetap dibuat dan dikirim 
 - Harga tertunda dan bersumber dari layanan tidak resmi; cocokkan dengan sumber resmi sebelum mengambil keputusan.
 - Foreign dan broker hanya untuk 100 saham paling aktif, dalam rupiah, dari 10 broker teratas per sisi yang diterbitkan IPOT.
 - Sinyal teknikal dan bandarmology adalah heuristik, bukan saran investasi.
+- Penandaan berita oleh AI bisa keliru (salah kode, salah arah). Peta tema → sektor adalah penyederhanaan: menunjukkan arah, bukan besar dampak per emiten. Beberapa feed RSS bisa berubah alamat atau menolak akses dari GitHub; Google News menjadi cadangan.
 - Time to buy adalah penyaring berbasis aturan sederhana dari data tertunda. Tidak ada backtest; pantau kolom *sejak* untuk melihat hasil nyatanya.
 - Ringkasan AI ditulis model bahasa dari angka laporan; bisa salah tafsir. Angka di laporan dihitung skrip, bukan oleh AI.
 - Tidak ada akun pengguna. Riwayat perintah dan watchlist disimpan di browser masing-masing.

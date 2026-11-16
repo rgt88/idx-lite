@@ -131,6 +131,13 @@ Uji tanpa mengirim Telegram: `python scripts/ai_report.py full --no-send --force
 3. Settings → Pages di GitHub: sumber tetap branch `gh-pages`, folder `/ (root)`.
 4. Kalau GitHub Pages sendiri bermasalah, cek https://www.githubstatus.com.
 
+### Berita TELAT atau SEBAGIAN
+
+- **SEBAGIAN** = ada feed RSS yang gagal (alamat berubah atau menolak akses). Cek di menu Berita → *Sumber & cara kerja*, atau di laptop `python scripts/fetch_news.py --test-feeds`. Matikan feed yang rusak (`"on": false` di `docs/data/news_sources.json`) atau ganti URL-nya, lalu push. Selama Google News jalan, berita tetap masuk.
+- **Berita tidak bertanda saham/tema** (tanda "ditandai kata kunci"): AI gagal atau kuota habis. Lihat baris `AI gagal:` di log run berita.
+- **Tema tanpa peta** sering muncul: tambahkan tema baru ke `docs/data/themes.json` (id, label, pos, neg, why).
+- **Peta salah** (cek pasar sering *berlawanan*): perbaiki grup `pos`/`neg` tema itu di `themes.json`.
+
 ### Pengatur tidak jalan
 
 `gh run list --workflow pengatur.yml --limit 5`. Kalau tidak ada run dalam 1 jam terakhir di jam bursa, cek job di cron-job.org (status terakhir harus HTTP 204). HTTP 401/403 berarti token GitHub di cron-job.org kedaluwarsa atau salah: buat token baru (Fine-grained, hanya repo idx-lite, izin *Actions: Read and write*) dan ganti di header job.
@@ -195,6 +202,8 @@ Catat setiap masalah yang butuh tindakan manual sebagai **GitHub Issue** di repo
 | Status semua bagian | `python scripts/cek_status.py --runs` |
 | Run terakhir semua workflow | `gh run list --limit 15` |
 | Jalankan ulang satu bagian | `gh workflow run <makro\|harga\|fundamental\|kepemilikan\|brief\|flow>.yml` |
+| Ambil berita sekarang | `gh workflow run berita.yml` |
+| Cek feed RSS | `python scripts/fetch_news.py --test-feeds` |
 | Hitung ulang time to buy | `gh workflow run sinyal.yml` |
 | Kirim laporan AI sekarang | `gh workflow run ai.yml -f jenis=full` (atau `-f jenis=sesi1 -f paksa=true`) |
 | Jalankan semua | `./scripts/jalankan_semua.sh`, atau workflow **jalankan-semua** (bisa dari HP) |

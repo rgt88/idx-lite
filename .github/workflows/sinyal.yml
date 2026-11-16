@@ -30,6 +30,7 @@ jobs:
             data/prices
             data/fundamentals.json
             data/signals.json
+            data/news/impact.json
       - run: python scripts/build_signals.py
       - uses: ./.github/actions/publish
         with:

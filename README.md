@@ -22,6 +22,7 @@ Situs: https://rgt88.github.io/idx-lite/ (terminal) · https://rgt88.github.io/i
 | `screen rsi<30,value>1B` | Saring semua saham (harga, teknikal, fundamental; `hsc=0` untuk membuang saham HSC) |
 | `hsc` | Daftar saham Kepemilikan Saham Terkonsentrasi Tinggi (ditandai merah di semua panel) |
 | `buy` / `buy teknikal` / `buy fundamental` / `buy saya` | Watchlist time to buy: sinyal beli menurut teknikal, fundamental, gabungan, atau watchlist sendiri (☆) |
+| `news` / `news terbaru` / `stocknews KODE` | Berita 7 hari, tema penggerak (komoditas, rupiah, suku bunga, kebijakan) dan sektor yang terdampak positif/negatif |
 | `ai` | Laporan pasar sesi 1 dan penutupan dengan ringkasan AI (juga dikirim ke Telegram) |
 | `market`, `macro`, `help`, `history`, `clear` | |
 
@@ -34,6 +35,7 @@ Situs: https://rgt88.github.io/idx-lite/ (terminal) · https://rgt88.github.io/i
 | `fundamentals*.json` | `scripts/fetch_fundamentals.py` | 16.30, 100 saham/hari | Yahoo Finance |
 | `flow/` | `scripts/fetch_flow.py` | 19.30 | Indo Premier lewat CLI [idx](https://github.com/fzn0x/idx) |
 | `signals.json` | `scripts/build_signals.py` | otomatis setelah harga/fundamental selesai | olahan harga + fundamental |
+| `news/` | `scripts/fetch_news.py` | ±tiap 4 jam | RSS portal berita + Google News, ditandai AI; peta sektor dari `themes.json` |
 | `ai/` + pesan Telegram | `scripts/ai_report.py` | 12.10 (Jumat 11.40) dan 17.05 | Yahoo + LLM gratis (Gemini/Groq/OpenRouter) |
 | `hsc.json` | `scripts/hsc_update.py` | manual, setiap ada pengumuman BEI | Pengumuman BEI |
 
