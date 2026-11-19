@@ -10,7 +10,8 @@ Sumber:
 - USD/IDR       : Frankfurter (kurs referensi ECB, harian) + riwayat Yahoo (IDR=X)
 - IHSG, WTI     : Yahoo Finance chart API (^JKSE, CL=F)
 - Yield SBN     : AsianBondsOnline (ADB), tenor 2Y/5Y/10Y + perubahan 1 hari, 1 minggu, YTD (bp)
-- CDS 5Y        : tidak ada sumber gratis resmi; dibaca dari docs/data/manual.json
+- CDS 5Y        : dari berita (scripts/fetch_cds.py -> cds.json) atau manual.json, mana yang lebih baru
+- Yield 1Y      : TradingView (scripts/fetch_tv.py -> tv/quotes.json); juga cadangan 2Y/5Y/10Y kalau ADB gagal
 
 Kalau satu sumber gagal, nilai lamanya dipertahankan dan status sumber itu dicatat.
 """
@@ -176,7 +177,7 @@ def fetch_adb_yields():
 # ---------------------------------------------------------------- utama
 def main():
     old = load(DATA_FILE, {})
-    result = {k: v for k, v in old.items() if k not in ("bond_1y",)}
+    result = dict(old)
     status = {}
 
     for key, fn in (("usdidr", fetch_usdidr),
@@ -202,13 +203,29 @@ def main():
             status[k] = f"error: {e}"
         print(f"[WARN] yield ADB: {e}", file=sys.stderr)
 
+    # CDS 5Y: angka manual atau dari berita (scripts/fetch_cds.py), mana yang lebih baru
     manual = load(MANUAL_FILE, {})
-    if isinstance(manual.get("cds_5y"), dict) and manual["cds_5y"].get("value") is not None:
-        result["cds_5y"] = {**manual["cds_5y"], "unit": "bps", "source": "manual"}
+    news_cds = load(DATA / "cds.json", {})
+    m = manual.get("cds_5y") if isinstance(manual.get("cds_5y"), dict) and manual["cds_5y"].get("value") is not None else None
+    if news_cds.get("value") is not None and (not m or news_cds.get("date", "") >= m.get("date", "")):
+        result["cds_5y"] = {"value": news_cds["value"], "date": news_cds["date"], "unit": "bps",
+                            "source": f"berita: {news_cds.get('source')}", "url": news_cds.get("url")}
+        status["cds_5y"] = "ok (berita)"
+    elif m:
+        result["cds_5y"] = {**m, "unit": "bps", "source": "manual"}
         status["cds_5y"] = "manual"
     else:
         result["cds_5y"] = None
         status["cds_5y"] = "manual: belum diisi"
+
+    # Yield 1Y dan cadangan tenor lain dari TradingView (scripts/fetch_tv.py)
+    tvq = (load(DATA / "tv" / "quotes.json", {}) or {}).get("quotes", {})
+    for k, qid in (("bond_1y", "id1y"), ("bond_2y", "id2y"), ("bond_5y", "id5y"), ("bond_10y", "id10y")):
+        q = tvq.get(qid)
+        if q and q.get("value") is not None and (k == "bond_1y" or not str(status.get(k, "")).startswith("ok")):
+            result[k] = {"value": round(q["value"], 3), "date": datetime.now(WIB).date().isoformat(), "unit": "%",
+                         "chg_1d_bp": round(q["chg"] * 100, 1) if q.get("chg") is not None else None, "source": "TradingView"}
+            status[k] = "ok (TradingView)"
 
     result["last_updated"] = datetime.now(WIB).isoformat()
     result["last_run_status"] = status
@@ -228,7 +245,7 @@ def main():
 
     # Arsip harian sendiri (yield, CDS, dan semua lainnya), satu nilai per tanggal data
     hist = load(HIST_FILE, {})
-    for key in ("usdidr", "ihsg", "crude_oil", "bond_2y", "bond_5y", "bond_10y", "cds_5y"):
+    for key in ("usdidr", "ihsg", "crude_oil", "bond_1y", "bond_2y", "bond_5y", "bond_10y", "cds_5y"):
         v = result.get(key)
         if isinstance(v, dict) and v.get("value") is not None:
             d = v.get("date") or datetime.now(WIB).date().isoformat()

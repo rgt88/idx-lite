@@ -155,7 +155,19 @@ def snapshot(info):
         "currency": info.get("financialCurrency"),
         "sector": info.get("sector"),
         "industry": info.get("industry"),
+        "div_rate": num(info.get("dividendRate")),
+        "last_div": num(info.get("lastDividendValue")),
+        "last_div_date": epoch_date(info.get("lastDividendDate")),
+        "ex_div": epoch_date(info.get("exDividendDate")),
+        "payout": num(info.get("payoutRatio") * 100, 1) if isinstance(info.get("payoutRatio"), (int, float)) else None,
     }
+
+
+def epoch_date(x):
+    try:
+        return datetime.fromtimestamp(int(x), timezone.utc).date().isoformat() if x else None
+    except (TypeError, ValueError, OSError):
+        return None
 
 
 def universe():

@@ -1,35 +1,45 @@
 :root {
-  --bg: #f4f6f9;
+  /* "Jakarta senja": tinta indigo-navy, kertas dingin, emas Monas hanya untuk sorotan */
+  --bg: #f2f4f8;
   --panel: #ffffff;
-  --fg: #111827;
-  --muted: #5b6676;
-  --line: #dde2ea;
-  --accent: #173d66;
+  --fg: #14264d;
+  --muted: #5a6880;
+  --line: #dbe1eb;
+  --accent: #2c47b5;
   --accent-fg: #ffffff;
-  --chip: #eef2f7;
-  --up: #11804a;
-  --down: #c62828;
-  --foreign: #c62828;
+  --gold: #c98f12;
+  --chip: #eaeef6;
+  --up: #08875a;
+  --down: #cf3427;
+  --foreign: #cf3427;
   --local: #6d3fc0;
-  --state: #11804a;
+  --state: #08875a;
+  --map-up: #0d9a63;
+  --map-down: #d8392b;
+  --map-flat: #474d58;
   --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0a111e;
-    --panel: #101a2c;
-    --fg: #e6ebf2;
-    --muted: #8a96a8;
-    --line: #213049;
-    --accent: #6ea8ff;
-    --accent-fg: #08101d;
-    --chip: #17233a;
-    --up: #3ccf86;
-    --down: #ff6b6b;
-    --foreign: #ff6b6b;
+    --bg: #0b1424;
+    --panel: #111d33;
+    --fg: #e8edf7;
+    --muted: #93a0b8;
+    --line: #22314d;
+    --accent: #8da5ff;
+    --accent-fg: #0b1424;
+    --gold: #f0b83a;
+    --chip: #192842;
+    --up: #34c98a;
+    --down: #ff6f62;
+    --foreign: #ff6f62;
     --local: #b89bff;
-    --state: #3ccf86;
+    --state: #34c98a;
+    --map-up: #13a86c;
+    --map-down: #e2463a;
+    --map-flat: #363c47;
     color-scheme: dark;
   }
 }

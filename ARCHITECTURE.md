@@ -88,6 +88,7 @@ Setiap sumber data punya workflow sendiri. Kalau satu sumber error atau lambat, 
 | brief | `brief.yml` | 17:15 | `brief/`, `brief_index.json` |
 | foreign-broker | `flow.yml` | 19:30 | `flow/` |
 | sinyal | `sinyal.yml` | setiap kali harga/fundamental selesai sukses; cadangan 17:40 dan 20:15 | `signals.json` |
+| bei | `bei.yml` | dipicu pengatur mulai 16:20, diulang sampai sesi hari ini masuk; cadangan 16:47 dan 19:47 | `idx/` |
 | berita | `berita.yml` | dipicu pengatur ±tiap 4 jam (07:00–21:00); cadangan 07:17, 12:17, 17:17 setiap hari | `news/` |
 | laporan-ai | `ai.yml` | 12:10 Sen–Kam, 11:40 Jum (sesi 1); 17:05 (penutupan) | `ai/` + pesan Telegram |
 
@@ -131,6 +132,14 @@ Kalau skrip gagal total, publish tidak dijalankan dan situs tetap menampilkan da
 | `brief/KODE.json` | Isi `idx stocks brief` (`idx.brief.v1`) | fetch_brief |
 | `brief_index.json` | Kapan brief tiap saham terakhir diambil | fetch_brief |
 | `signals.json` | Skor & status time to buy (teknikal, fundamental, gabungan) per saham likuid, urutan daftar, aturan, tanggal sinyal pertama muncul | build_signals |
+| `idx/foreign.json` | Foreign flow BEI: pasar (beli/jual/net + riwayat 60 hari) dan per saham (1/5/20 hari), 20 net beli/jual teratas | fetch_idx |
+| `idx/fs/KODE.json` | Riwayat foreign per saham 60 hari: [tanggal, beli lembar, jual lembar, close] | fetch_idx |
+| `idx/indices.json` | 45 indeks BEI (IHSG, LQ45, IDX30, 11 sektor IDX-IC, syariah, dll.) + riwayat | fetch_idx |
+| `idx/brokers.json` | Nilai/volume/frekuensi per broker seluruh pasar | fetch_idx |
+| `idx/days/YYYY-MM-DD.json` | Arsip ringkasan saham harian (60 hari bursa) | fetch_idx |
+| `tv/stocks.json` | Sektor, kapitalisasi, perubahan 1H/1M/1B/3B/YTD semua saham (peta pasar) | fetch_tv |
+| `tv/quotes.json` | Yield SBN 1Y–10Y, batubara, CPO, nikel, emas, minyak, tembaga, DXY, US10Y | fetch_tv |
+| `cds.json` | CDS 5Y terbaru yang disebut berita (nilai, tanggal, sumber, tautan) | fetch_cds |
 | `news/articles.json` | Berita 7 hari: judul, sumber, tautan, tanggal, ringkasan pendek, kode saham + sentimen, tema + arah | fetch_news |
 | `news/themes.json` | Tema aktif: skor, arah, kelompok sektor positif/negatif, cek pasar, tema tanpa peta | fetch_news |
 | `news/impact.json` | Dampak per saham: berita langsung + efek tema | fetch_news |
@@ -213,6 +222,17 @@ git add docs/data/hsc.json && git commit -m "hsc: pengumuman 2026-11-11" && git 
 Dari lampiran PDF, skrip membaca nomor pengumuman, tanggal pengumuman, tanggal evaluasi, tanggal efektif di IHSG (hari bursa ke-2 setelah pengumuman), persentase kepemilikan 10 pemegang terbesar, status baru/lanjutan, dan tanda catatan (`*`, `**`, `***`) tiap saham. Tanpa PDF, daftar kode bisa ditempel lewat stdin, atau diubah sebagian dengan `--add` / `--remove`.
 
 Push ke `main` langsung menerbitkan ulang situs. Skrip mencetak saham yang masuk dan keluar dibanding daftar sebelumnya, jadi hasilnya bisa dicek sebelum push. Hitungan hari bursa efektif tidak memperhitungkan hari libur bursa; cocokkan dengan teks pengumuman.
+
+## Sumber data tambahan (update 20)
+
+| Data | Sumber gratis | Cara | Catatan |
+| --- | --- | --- | --- |
+| Foreign flow semua saham, indeks sektor, broker pasar | idx.co.id `GetStockSummary`, `GetIndexSummary`, `GetBrokerSummary` | `fetch_idx.py`: curl_cffi (sidik jari TLS Chrome) → Playwright Chromium bila ditantang Cloudflare | Lembar × close (BEI tidak menerbitkan rupiah). Bila GitHub Actions tetap diblokir: jalankan dari laptop / runner self-hosted |
+| Peta pasar (sektor, market cap, performa) | Pemindai publik TradingView | `fetch_tv.py`, satu permintaan untuk semua saham | Endpoint tidak resmi; kolom/simbol yang ditolak dibuang otomatis |
+| Yield SBN 1Y, komoditas (batubara, CPO, nikel, emas, minyak, tembaga), DXY | TradingView | `fetch_tv.py` | Mengisi yield 1Y yang tidak ada di ADB |
+| CDS 5Y | Angka yang disebut berita (Google News) | `fetch_cds.py`: pola teks, dipastikan AI bila ada key | Tidak ada sumber data CDS gratis resmi; manual.json tetap bisa menimpa |
+| Dividen (ex-date, nilai terakhir, payout) | Yahoo Finance `info` | ikut `fetch_fundamentals.py` | Bergilir 100 saham/hari |
+| Broker summary per saham, bandar | IPOT (lewat CLI idx) | tetap `fetch_flow.py` | Tidak ada pengganti gratis; yang berbayar: Sectors.app, Invezgo, IndexAlpha |
 
 ## Berita dan tema dampak sektor
 

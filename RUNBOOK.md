@@ -131,6 +131,16 @@ Uji tanpa mengirim Telegram: `python scripts/ai_report.py full --no-send --force
 3. Settings → Pages di GitHub: sumber tetap branch `gh-pages`, folder `/ (root)`.
 4. Kalau GitHub Pages sendiri bermasalah, cek https://www.githubstatus.com.
 
+### BEI SUMBER ERROR (diblokir)
+
+Cloudflare idx.co.id menolak curl_cffi dan browser dari GitHub Actions. Data lama tetap tayang.
+
+1. Coba ulang dengan browser: `gh workflow run bei.yml -f cara=browser`.
+2. Dari laptop (IP rumah biasanya lolos): `pip install curl_cffi && python scripts/fetch_idx.py --days 5`, lalu `./scripts/update_lokal.sh deploy` untuk menerbitkan.
+3. Permanen: pasang runner self-hosted GitHub di WSL dan ubah `runs-on` di `bei.yml` menjadi `self-hosted` (laptop harus menyala sore hari).
+
+Pertama kali, isi riwayat 40 hari: `gh workflow run bei.yml -f hari=40`.
+
 ### Berita TELAT atau SEBAGIAN
 
 - **SEBAGIAN** = ada feed RSS yang gagal (alamat berubah atau menolak akses). Cek di menu Berita → *Sumber & cara kerja*, atau di laptop `python scripts/fetch_news.py --test-feeds`. Matikan feed yang rusak (`"on": false` di `docs/data/news_sources.json`) atau ganti URL-nya, lalu push. Selama Google News jalan, berita tetap masuk.
@@ -202,6 +212,7 @@ Catat setiap masalah yang butuh tindakan manual sebagai **GitHub Issue** di repo
 | Status semua bagian | `python scripts/cek_status.py --runs` |
 | Run terakhir semua workflow | `gh run list --limit 15` |
 | Jalankan ulang satu bagian | `gh workflow run <makro\|harga\|fundamental\|kepemilikan\|brief\|flow>.yml` |
+| Ambil data BEI (foreign, indeks, broker) | `gh workflow run bei.yml` (pertama kali `-f hari=40`) |
 | Ambil berita sekarang | `gh workflow run berita.yml` |
 | Cek feed RSS | `python scripts/fetch_news.py --test-feeds` |
 | Hitung ulang time to buy | `gh workflow run sinyal.yml` |

@@ -22,6 +22,10 @@ Situs: https://rgt88.github.io/idx-lite/ (terminal) · https://rgt88.github.io/i
 | `screen rsi<30,value>1B` | Saring semua saham (harga, teknikal, fundamental; `hsc=0` untuk membuang saham HSC) |
 | `hsc` | Daftar saham Kepemilikan Saham Terkonsentrasi Tinggi (ditandai merah di semua panel) |
 | `buy` / `buy teknikal` / `buy fundamental` / `buy saya` | Watchlist time to buy: sinyal beli menurut teknikal, fundamental, gabungan, atau watchlist sendiri (☆) |
+| `dashboard` / `map` | Beranda dan peta pasar per sektor (luas = kapitalisasi, warna = perubahan 1H/1M/1B/3B/YTD) |
+| `indices` | Semua indeks BEI termasuk 11 indeks sektor IDX-IC |
+| `dividends` | Kalender ex-dividen |
+| `foreign --hari 1\|5\|20` | Foreign flow semua saham dari BEI |
 | `news` / `news terbaru` / `stocknews KODE` | Berita 7 hari, tema penggerak (komoditas, rupiah, suku bunga, kebijakan) dan sektor yang terdampak positif/negatif |
 | `ai` | Laporan pasar sesi 1 dan penutupan dengan ringkasan AI (juga dikirim ke Telegram) |
 | `market`, `macro`, `help`, `history`, `clear` | |

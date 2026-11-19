@@ -313,6 +313,7 @@ def main():
     hsc = set((load(DATA / "hsc.json", {}) or {}).get("codes", []))
     prev = (load(OUT, {}) or {}).get("stocks", {})
     news = (load(DATA / "news" / "impact.json", {}) or {}).get("stocks", {})
+    forx = (load(DATA / "idx" / "foreign.json", {}) or {}).get("stocks", {})
     session = max(x["date"] for x in summ["stocks"])
 
     # median P/E dan P/B per sektor (minimal 5 saham), cadangan median pasar
@@ -364,6 +365,14 @@ def main():
         nw = news_note(news.get(sym))
         if nw:
             e["news"] = nw
+        fx = forx.get(sym)
+        if fx and t:
+            n5 = fx.get("net_5d") or 0
+            if abs(n5) >= max(1e9, 0.05 * val20 * 5):      # cukup besar: ≥ Rp1 M dan ≥ 5% nilai transaksi 5 hari
+                amt = f"{abs(n5) / 1e12:.2f} T" if abs(n5) >= 1e12 else f"{abs(n5) / 1e9:.1f} M"
+                txt = f"Asing net {'beli' if n5 > 0 else 'jual'} 5 hari Rp{amt.replace('.', ',')}"
+                (t["reasons"] if n5 > 0 else t["warnings"]).append(txt)
+            e["foreign_5d"] = round(n5)
         if sym in hsc:
             e["hsc"] = True
 

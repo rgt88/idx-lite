@@ -1,5 +1,5 @@
 name: makro
-# USD/IDR, IHSG, WTI, CDS, yield. 08, 10, 12, 14, 16, 19 WIB
+# USD/IDR, IHSG, WTI, CDS, yield + TradingView (heatmap sektor, komoditas, yield 1Y). 08, 10, 12, 14, 16, 19 WIB
 on:
   schedule:
     - cron: "0 1,3,5,7,9,12 * * 1-5"
@@ -22,6 +22,10 @@ jobs:
             data/data.json
             data/macro_series.json
             data/macro_hist.json
+            data/tv
+            data/cds.json
+      - name: TradingView (sektor, komoditas, yield 1Y)
+        run: timeout 5m python scripts/fetch_tv.py || echo "TradingView gagal; data lama dipakai"
       - run: python scripts/macro_update.py
       - uses: ./.github/actions/publish
         with:
@@ -29,4 +33,5 @@ jobs:
             data/data.json
             data/macro_series.json
             data/macro_hist.json
+            data/tv
           message: makro

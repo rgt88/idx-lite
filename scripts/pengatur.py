@@ -138,6 +138,11 @@ def main():
     else:
         print(f"  harga.yml: sesi {session} sudah tayang")
 
+    # BEI (foreign per saham, indeks sektor, broker): mulai 16:20, diulang sampai sesi hari ini masuk
+    bei = live("idx/meta.json") or {}
+    if (bei.get("last_date") or "") < today:
+        consider("bei.yml", start=(16, 20), max_tries=4, gap=45, need_success=99, reason=f"data BEI terakhir {bei.get('last_date') or '-'}")
+
     # fundamental, kepemilikan, brief: sekali sehari setelah harga
     consider("fundamental.yml", start=(16, 45), max_tries=2, gap=60)
     consider("kepemilikan.yml", start=(17, 0), max_tries=2, gap=60)

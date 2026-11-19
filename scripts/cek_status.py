@@ -150,6 +150,27 @@ else:
         f"sesi {sg['session']}, {sg.get('evaluated')} saham dinilai; sinyal beli gabungan {cn.get('combined', {}).get('beli')}, "
         f"teknikal {cn.get('technical', {}).get('beli')}, fundamental {cn.get('fundamental', {}).get('beli')}")
 
+# data resmi BEI (foreign per saham, indeks, broker)
+bm = get("idx/meta.json")
+if not bm:
+    add("bei", "BELUM ADA", "idx/meta.json belum ada (jalankan: gh workflow run bei.yml -f hari=40)")
+else:
+    ld = bm.get("last_date")
+    ok = ld and date.fromisoformat(ld) >= SESSION
+    st = bm.get("state")
+    add("bei", "OK" if ok else ("SUMBER ERROR" if st == "diblokir" else "TELAT"),
+        f"sesi {ld}, cara {bm.get('method') or '-'}" + (f"; {'; '.join(bm.get('errors') or [])[:140]}" if st == "diblokir" else ""))
+
+# TradingView (peta pasar, komoditas, yield 1Y)
+tm = get("tv/meta.json")
+if not tm:
+    add("tradingview", "BELUM ADA", "tv/meta.json belum ada (ikut workflow makro)")
+else:
+    ts = parse_ts(tm.get("updated"))
+    bad_tv = [k for k in ("stocks", "quotes") if str(tm.get(k, "")).startswith("gagal")]
+    add("tradingview", "TELAT" if ts is None or NOW - ts > timedelta(hours=26) else ("SEBAGIAN" if bad_tv else "OK"),
+        f"diperbarui {age(ts)}; saham: {tm.get('stocks')}; kuotasi: {tm.get('quotes')}"[:160])
+
 # berita & tema
 nm = get("news/meta.json")
 if not nm:
@@ -189,7 +210,7 @@ for name, state, detail in rows:
 
 if args.runs:
     print("\nRun terakhir tiap workflow:")
-    for wf in ("pengatur", "makro", "harga", "fundamental", "sinyal", "kepemilikan", "brief", "flow", "berita", "ai", "site", "uji"):
+    for wf in ("pengatur", "makro", "harga", "bei", "fundamental", "sinyal", "kepemilikan", "brief", "flow", "berita", "ai", "site", "uji"):
         try:
             out = subprocess.run(["gh", "run", "list", "--workflow", f"{wf}.yml", "--limit", "1", "--json",
                                   "status,conclusion,createdAt,event,databaseId"], capture_output=True, text=True, timeout=30)

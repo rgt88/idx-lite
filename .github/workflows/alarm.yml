@@ -2,7 +2,7 @@ name: alarm
 # Kirim pesan Telegram setiap kali salah satu workflow data gagal (merah).
 on:
   workflow_run:
-    workflows: [makro, harga, fundamental, kepemilikan, brief, foreign-broker, sinyal, berita, laporan-ai, situs, pengatur, uji]
+    workflows: [makro, harga, bei, fundamental, kepemilikan, brief, foreign-broker, sinyal, berita, laporan-ai, situs, pengatur, uji]
     types: [completed]
 permissions:
   contents: read

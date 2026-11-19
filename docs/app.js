@@ -7,12 +7,16 @@ const TABS = [
   ["berita", "Berita", "stocknews"],
 ];
 const PAGES = {
-  pasar: { title: "Pasar hari ini", desc: "Indikator makro, saham naik dan turun terbanyak, yang paling aktif, aliran dana asing, dan broker teratas.", cmd: "market" },
+  pasar: { title: "Pasar hari ini", desc: "", cmd: "dashboard" },
+  peta: { title: "Peta pasar", desc: "Saham-saham besar BEI per sektor. Luas kotak menunjukkan kapitalisasi pasar, warnanya menunjukkan naik-turun harga.", cmd: "map" },
+  indeks: { title: "Indeks & sektor", desc: "Semua indeks BEI hari ini: IHSG, LQ45, IDX30, 11 indeks sektor IDX-IC, indeks syariah dan lainnya.", cmd: "indices" },
+  dividen: { title: "Dividen", desc: "Saham yang akan dan baru saja memasuki tanggal ex-dividen, dengan nilai dividen terakhir dan yield 12 bulan.", cmd: "dividends" },
+  menu: { title: "Semua menu", desc: "", cmd: null },
   berita: { title: "Berita & tema", desc: "Berita pasar 7 hari terakhir, tema penggeraknya (harga komoditas, rupiah, suku bunga, kebijakan), dan sektor yang diperkirakan terdampak positif atau negatif.", cmd: "news" },
   beli: { title: "Time to buy", desc: "Watchlist saham yang sedang memberi sinyal beli menurut teknikal, fundamental, atau keduanya. Dihitung ulang setiap sore setelah harga diperbarui.", cmd: "buy" },
   ai: { title: "Laporan AI", desc: "Laporan otomatis setelah sesi 1 dan setelah penutupan: angka dihitung skrip, narasinya ditulis AI. Juga dikirim ke Telegram.", cmd: "ai" },
-  makro: { title: "Makro", desc: "Kurs, IHSG, minyak, yield SBN dan CDS, dengan grafik tren.", cmd: "macro" },
-  foreign: { title: "Foreign flow", desc: "Saham yang paling banyak dibeli dan dijual investor asing pada sesi terakhir. Ketuk kode saham untuk riwayatnya.", cmd: "foreign" },
+  makro: { title: "Makro & komoditas", desc: "Kurs, IHSG, yield SBN 1–10 tahun, CDS, batubara, CPO, nikel, emas, minyak, dengan grafik tren.", cmd: "macro" },
+  foreign: { title: "Foreign flow", desc: "Saham yang paling banyak dibeli dan dijual investor asing: hari ini, 5 hari, dan 20 hari. Ketuk kode saham untuk riwayatnya.", cmd: "foreign" },
   broker: { title: "Broker", desc: "Ranking broker seluruh pasar pada sesi terakhir. Ketuk kode broker untuk melihat saham yang ia beli dan jual.", cmd: "brokers" },
   bandar: { title: "Bandarmology", desc: "Apakah broker terbesar sedang mengumpulkan (akumulasi) atau melepas (distribusi) saham? Dihitung untuk 100 saham paling aktif.", cmd: "bandar screen" },
   screener: { title: "Screener", desc: "Cari saham dengan kriteria harga, teknikal dan fundamental.", cmd: null },
@@ -21,7 +25,7 @@ const PAGES = {
   x: { title: "Hasil", desc: "", cmd: null },
 };
 const TAB_OF = { quote: "ringkasan", brief: "ringkasan", technical: "teknikal", fundamental: "fundamental", analyst: "analis", ownership: "kepemilikan", broker: "broker", foreign: "foreign", bandar: "bandar", stocknews: "berita" };
-const PAGE_OF = { news: "berita", buy: "beli", ai: "ai", market: "pasar", macro: "makro", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc", ownership: "kepemilikan" };
+const PAGE_OF = { dashboard: "pasar", map: "peta", indices: "indeks", dividends: "dividen", news: "berita", buy: "beli", ai: "ai", market: "pasar", macro: "makro", foreign: "foreign", brokers: "broker", "bandar screen": "bandar", "bandar broker": "broker", screen: "screener", hsc: "hsc", ownership: "kepemilikan" };
 
 const view = $("#view");
 
@@ -86,9 +90,25 @@ async function renderStock(sym, tab) {
 }
 
 /* ---------- halaman menu ---------- */
+const MENU = [
+  ["Pasar", [["pasar", "Beranda"], ["peta", "Peta pasar"], ["indeks", "Indeks & sektor"], ["makro", "Makro & komoditas"], ["berita", "Berita & tema"], ["ai", "Laporan AI"]]],
+  ["Uang besar", [["foreign", "Foreign flow"], ["broker", "Broker"], ["bandar", "Bandarmology"], ["kepemilikan", "Kepemilikan KSEI"]]],
+  ["Cari saham", [["beli", "Time to buy"], ["screener", "Screener"], ["dividen", "Dividen"], ["hsc", "Saham HSC"]]],
+];
 async function renderPage(r) {
   const p = PAGES[r.page];
   document.title = `${p.title} · IDX Lite`;
+  if (r.page === "pasar" && !r.c) {
+    view.innerHTML = `<h1 class="sr-only">Pasar hari ini</h1><div id="pane" class="dash"></div>`;
+    await exec("dashboard", $("#pane"));
+    return;
+  }
+  if (r.page === "menu") {
+    view.innerHTML = `<section class="page-head"><h1>Semua menu</h1></section>${MENU.map(([g, items]) => `<section class="menu-g"><h2>${g}</h2>
+      <div class="menu-l">${items.map(([id, l]) => `<a href="${id === "pasar" ? "#/" : "#/" + id}"><b>${l}</b><span>${esc(PAGES[id].desc || "Ringkasan pasar hari ini.")}</span></a>`).join("")}</div></section>`).join("")}
+      <p class="note"><a href="terminal.html">Mode terminal</a> untuk mengetik perintah, <a href="board.html">papan tabel</a> untuk semua saham sekaligus.</p>`;
+    return;
+  }
   view.innerHTML = `
     <section class="page-head"><h1>${p.title}</h1>${p.desc ? `<p class="muted">${p.desc}</p>` : ""}</section>
     <div class="controls"></div>
@@ -240,8 +260,10 @@ document.addEventListener("keydown", (e) => {
 /* ---------- mulai ---------- */
 async function render() {
   const r = parseRoute();
-  document.querySelectorAll(".mainnav a").forEach((a) => a.toggleAttribute("aria-current", !r.stock && a.dataset.page === r.page));
-  document.querySelectorAll(".mainnav a[aria-current]").forEach((a) => a.setAttribute("aria-current", "page"));
+  document.querySelectorAll(".mainnav a, .tabbar a").forEach((a) => {
+    const on = !r.stock && (a.dataset.page === r.page || (a.dataset.also || "").split(" ").includes(r.page));
+    if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
   window.scrollTo({ top: 0 });
   if (r.stock) await renderStock(r.stock, r.tab);
   else await renderPage(r);

@@ -24,13 +24,22 @@ jobs:
             data/news
             data/fundamentals.json
             data/prices
+            data/cds.json
       - name: Ambil dan tandai berita
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_BASE_URL: ${{ vars.AI_BASE_URL }}
           AI_MODEL: ${{ vars.AI_MODEL }}
         run: timeout 15m python scripts/fetch_news.py
+      - name: CDS 5Y dari berita
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+        run: timeout 5m python scripts/fetch_cds.py || echo "CDS dari berita gagal"
       - uses: ./.github/actions/publish
         with:
-          paths: data/news
+          paths: |
+            data/news
+            data/cds.json
           message: berita

@@ -450,6 +450,9 @@ def("foreign", "foreign [BBCA]", "Tanpa kode: net beli/jual asing di 100 saham t
   if (env) {
     days = env.data.days.map((d) => ({ date: d.date, net: d.foreign_net_value, buy: d.foreign_buy_value, sell: d.foreign_sell_value, value: d.value, share: d.foreign_share_pct, avg: d.average_price }));
     totals = env.data.totals;
+  } else if (await getJSON(`idx/fs/${sym}.json`, true)) {
+    const rows = await getJSON(`idx/fs/${sym}.json`, true);
+    days = rows.map(([date, fb, fs, close]) => ({ date, buy: fb * close, sell: fs * close, net: (fb - fs) * close }));
   } else {
     const hist = await getJSON("flow/foreign_hist.json", true);
     days = Object.entries(hist?.sessions || {}).filter(([, m]) => m[sym]).map(([date, m]) => ({ date, net: m[sym][0], value: m[sym][1], chg: m[sym][2] })).sort((x, y) => (x.date < y.date ? -1 : 1));
@@ -469,7 +472,7 @@ def("foreign", "foreign [BBCA]", "Tanpa kode: net beli/jual asing di 100 saham t
              { h: "Nilai transaksi", n: 1, f: (d) => big(d.value) }, { h: "Porsi asing", n: 1, f: (d) => (isNum(d.share) ? nf(d.share, 1) + "%" : "–") }, { h: "Kumulatif", n: 1, f: (d) => sgn(d.cum) }],
             days.slice().reverse())}
     <div class="btns rel">${cmdBtn(`broker ${sym}`)}${cmdBtn(`bandar ${sym}`)}${cmdBtn(`quote ${sym}`)}</div>
-    <p class="note">${env ? "Rupiah, semua papan, dari broker summary IPOT." : "Dari arsip harian net asing 100 saham teraktif; bertambah satu sesi per hari."}</p>
+    <p class="note">${env ? "Rupiah, semua papan, dari broker summary IPOT." : days[0]?.buy != null ? "Dari ringkasan saham BEI (idx.co.id): lembar × harga penutupan, papan reguler." : "Dari arsip harian net asing 100 saham teraktif; bertambah satu sesi per hari."}</p>
     ${envNote(env)}`;
   if (chartReady()) {
     const ch = mkChart($(".chart.sm", body), big);
@@ -483,8 +486,20 @@ def("foreign", "foreign [BBCA]", "Tanpa kode: net beli/jual asing di 100 saham t
 }, ["fr"]);
 
 /* market_foreign.json bisa dari IPOT (rupiah, 100 saham teraktif) atau idx.co.id (lembar, semua saham) */
-async function marketForeignEnv() {
-  const env = await getJSON("flow/market_foreign.json", true);
+async function marketForeignEnv(period = "1") {
+  const [flow, bei] = await Promise.all([getJSON("flow/market_foreign.json", true), getJSON("idx/foreign.json", true)]);
+  const flowDate = flow?.data?.date || "";
+  if (bei && (bei.date >= flowDate || period !== "1")) {
+    const key = { 1: "net_val", 5: "net_5d", 20: "net_20d" }[period] || "net_val";
+    const pick = { 1: ["top_buy", "top_sell"], 5: ["top_buy_5d", "top_sell_5d"], 20: ["top_buy_20d", "top_sell_20d"] }[period] || ["top_buy", "top_sell"];
+    const conv = (r) => ({ symbol: r.code, price: r.close, change_pct: r.chg, foreign_net_value: r[key], value: r.value,
+      foreign_net_pct: period === "1" && r.value ? (r.net_val / r.value) * 100 : null });
+    return { _bei: true, _period: period, fetched_at: null, provider: "idx.co.id",
+      data: { date: bei.date, stocks: Object.keys(bei.stocks).length, net_buy: bei[pick[0]].map(conv), net_sell: bei[pick[1]].map(conv),
+              market: { value: bei.market.value, foreign_buy_value: bei.market.buy, foreign_sell_value: bei.market.sell, foreign_net_value: bei.market.net },
+              hist: bei.market_hist } };
+  }
+  const env = flow;
   if (!env || env._norm) return env;
   env._shares = env.schema === "idx.market.foreign.v1";
   for (const r of [...(env.data.net_buy || []), ...(env.data.net_sell || [])]) {
@@ -497,8 +512,10 @@ async function marketForeignEnv() {
 }
 
 async function marketForeign(a) {
-  const env = await marketForeignEnv();
+  const period = String(a.flags.hari || a.flags.period || "1");
+  const env = await marketForeignEnv(period);
   if (!env) return flowMissing("Data foreign pasar");
+  if (env._bei) return marketForeignBei(env, a);
   const d = env.data, top = Number(a.flags.top) || 20, sh = env._shares;
   const cols = [
     { h: "Kode", f: (r) => symLink(r.symbol) },
@@ -522,8 +539,30 @@ async function marketForeign(a) {
     ${envNote(env)}`;
 }
 
+function marketForeignBei(env, a) {
+  const d = env.data, top = Number(a.flags.top) || 20, p = env._period;
+  const lbl = { 1: "hari ini", 5: "5 hari", 20: "20 hari" }[p];
+  const cols = [{ h: "Kode", f: (r) => symLink(r.symbol) }, { h: "Harga", n: 1, f: (r) => nf(r.price) }, { h: "Chg", n: 1, f: (r) => pct(r.change_pct) },
+    { h: `Net ${lbl}`, n: 1, f: (r) => sgn(r.foreign_net_value) }, ...(p === "1" ? [{ h: "% nilai", n: 1, f: (r) => pct(r.foreign_net_pct, 1) }] : []), { h: "Nilai hari ini", n: 1, f: (r) => big(r.value) }];
+  const m = d.market, hist = d.hist || [];
+  const sum = (n) => hist.slice(-n).reduce((t, x) => t + x.net, 0);
+  return `
+    <div class="seg" role="group">${[["1", "Hari ini"], ["5", "5 hari"], ["20", "20 hari"]].map(([k, l]) => `<button data-cmd="foreign --hari ${k}" aria-pressed="${k === p}">${l}</button>`).join("")}</div>
+    <div class="cards">${card("Asing beli", big(m.foreign_buy_value), tgl(d.date))}${card("Asing jual", big(m.foreign_sell_value))}${card("Net hari ini", sgn(m.foreign_net_value))}${card("Net 5 hari", sgn(sum(5)))}${card("Net 20 hari", sgn(sum(20)))}</div>
+    ${foreignHistSvg(hist)}
+    <div class="grid"><div><h3>Net beli asing ${lbl}</h3>${table(cols, d.net_buy.slice(0, top))}</div><div><h3>Net jual asing ${lbl}</h3>${table(cols, d.net_sell.slice(0, top))}</div></div>
+    <p class="note">Sumber idx.co.id (ringkasan saham BEI), semua ${nf(d.stocks)} saham, papan reguler. BEI menerbitkan beli/jual asing dalam lembar; nilai di sini = lembar × harga penutupan, perkiraan skala rupiah.</p>`;
+}
+
 def("brokers", "brokers [--sort value|net|frequency]", "Ranking broker seluruh pasar sesi terakhir, dengan jenis dan net.", async (a) => {
   const env = await getJSON("flow/market_brokers.json", true);
+  const bei = await getJSON("idx/brokers.json", true);
+  if (bei && (!env || bei.date > (env.data?.date || ""))) {
+    return `<p class="muted">Sesi ${esc(tgl(bei.date))} · ${nf(bei.brokers.length)} broker</p>${table([
+      { h: "#", n: 1, f: (b) => nf(b.rank) }, { h: "Kode", f: (b) => `<a class="code" data-cmd="bandar broker ${esc(b.code)}">${esc(b.code)}</a>` }, { h: "Nama", f: (b) => esc(b.name) },
+      { h: "Nilai", n: 1, f: (b) => big(b.value) }, { h: "Volume", n: 1, f: (b) => big(b.volume) }, { h: "Frekuensi", n: 1, f: (b) => nf(b.freq) }], bei.brokers.slice(0, Number(a.flags.top) || 50))}
+      <p class="note">Sumber idx.co.id. ${esc(bei.note)} Untuk net beli/jual dan jenis broker per saham dibutuhkan broker summary IPOT (workflow foreign-broker).</p>`;
+  }
   if (!env) return flowMissing("Ranking broker");
   const d = env.data, key = a.flags.sort || "value", top = Number(a.flags.top) || 30;
   const getters = { value: (b) => b.value, volume: (b) => b.volume, frequency: (b) => b.frequency, net: (b) => b.net_value, buy: (b) => b.buy_value, sell: (b) => b.sell_value };
@@ -673,7 +712,7 @@ def("screen", "screen rsi<30,value>1B", "Saring semua saham. Kunci: price, chg, 
 /* ---------- makro: kartu bertren + halaman grafik ---------- */
 const MACRO = [
   { k: "usdidr", l: "USD/IDR", d: 0, u: "", inv: 1 }, { k: "ihsg", l: "IHSG", d: 2, u: "" }, { k: "crude_oil", l: "Minyak WTI", d: 2, u: "" },
-  { k: "bond_2y", l: "Yield SBN 2Y", d: 2, u: "%", y: 1, inv: 1 }, { k: "bond_5y", l: "Yield SBN 5Y", d: 2, u: "%", y: 1, inv: 1 }, { k: "bond_10y", l: "Yield SBN 10Y", d: 2, u: "%", y: 1, inv: 1 },
+  { k: "bond_1y", l: "Yield SBN 1Y", d: 2, u: "%", y: 1, inv: 1 }, { k: "bond_2y", l: "Yield SBN 2Y", d: 2, u: "%", y: 1, inv: 1 }, { k: "bond_5y", l: "Yield SBN 5Y", d: 2, u: "%", y: 1, inv: 1 }, { k: "bond_10y", l: "Yield SBN 10Y", d: 2, u: "%", y: 1, inv: 1 },
   { k: "cds_5y", l: "CDS 5Y", d: 1, u: " bps", y: 1, inv: 1 },
 ];
 const bpTxt = (v) => (isNum(v) ? `<span class="${v > 0 ? "down" : v < 0 ? "up" : ""}">${v > 0 ? "▲" : v < 0 ? "▼" : ""}${nf(Math.abs(v), 1)}</span>` : "–");
@@ -702,12 +741,19 @@ async function macroCards() {
   return `<div class="cards macro">${MACRO.map((c) => {
     let x = m[c.k], note = "";
     if ((!x || x.value == null) && manual[c.k]?.value != null) { x = manual[c.k]; note = `manual ${esc(x.date || "")}`; }
-    if (!x || x.value == null) return `<a class="card" data-cmd="macro"><div class="l">${c.l}</div><div class="v">–</div><div class="s">${c.k === "cds_5y" ? "isi di manual.json" : "tidak tersedia"}</div></a>`;
-    const sub = c.y && isNum(x.chg_1d_bp)
+    if (!x || x.value == null) return `<a class="card" data-cmd="macro"><div class="l">${c.l}</div><div class="v">–</div><div class="s">${c.k === "cds_5y" ? "belum ada di berita / manual.json" : "tidak tersedia"}</div></a>`;
+    if (c.k === "cds_5y" && x.source && String(x.source).startsWith("berita")) note = `${esc(x.source.replace("berita: ", ""))}, ${esc(tgl(x.date))}`;
+    const sub = note && c.k === "cds_5y" ? note : c.y && isNum(x.chg_1d_bp)
       ? `${bpTxt(x.chg_1d_bp)} bp · 1mg ${bpTxt(x.chg_1w_bp)} · YTD ${bpTxt(x.chg_ytd_bp)}`
       : isNum(x.change_pct) ? `<span class="${cls(c.inv ? -x.change_pct : x.change_pct)}">${x.change_pct > 0 ? "+" : ""}${nf(x.change_pct, 2)}%</span>` : note || esc(x.date || "");
     return `<a class="card" data-cmd="macro" title="Lihat grafik"><div class="l">${c.l}</div><div class="v">${nf(x.value, c.d)}${c.u}</div><div class="s">${sub}</div>${spark(seriesOf(c.k), c.inv)}</a>`;
-  }).join("")}</div><p class="note">Makro diperbarui ${wib(m.last_updated)} · yield: AsianBondsOnline (ADB), perubahan dalam basis poin · ketuk kartu untuk grafik</p>`;
+  }).join("")}</div>${await commodityCards()}<p class="note">Makro diperbarui ${wib(m.last_updated)}. Yield: AsianBondsOnline (ADB), 1Y dan cadangan dari TradingView. CDS 5Y: angka terbaru yang disebut di berita (atau manual.json). Ketuk kartu untuk grafik.</p>`;
+}
+async function commodityCards() {
+  const q = await getJSON("tv/quotes.json", true);
+  const rows = Object.values(q?.quotes || {}).filter((x) => x.group !== "yield" || x.symbol === "TVC:US10Y");
+  if (!rows.length) return "";
+  return `<h3>Komoditas & global</h3><div class="cards macro">${rows.map((x) => `<div class="card"><div class="l">${esc(x.label)}</div><div class="v">${nf(x.value, x.value < 20 ? 2 : 0)}${x.unit === "%" ? "%" : ""}</div><div class="s">${pct(x.chg_pct)}${isNum(x.r1m) ? ` · 1 bln ${pct(x.r1m, 1)}` : ""}${x.unit && x.unit !== "%" ? ` · ${esc(x.unit)}` : ""}</div></div>`).join("")}</div>`;
 }
 def("macro", "macro", "Indikator makro dengan grafik tren: USD/IDR, IHSG, minyak WTI, yield SBN 2Y/5Y/10Y, CDS 5Y.", async (a, body) => {
   const { m, manual, seriesOf } = await macroData();
@@ -722,10 +768,10 @@ def("macro", "macro", "Indikator makro dengan grafik tren: USD/IDR, IHSG, minyak
     <div class="btns" data-mrange>${["1M", "3M", "6M", "1Y", "Semua"].map((k) => `<button class="btn" data-r="${k}" aria-pressed="${k === "3M"}">${k}</button>`).join("")}</div>
     <div class="grid">${charts.map((c) => `
       <div class="mchart"><h3>${c.l}${c.x?.value != null ? ` · ${nf(c.x.value, c.d)}${c.u}` : ""}</h3>
-        ${c.rows.length >= 2 ? `<div class="chart sm" data-k="${c.k}"></div>` : `<div class="empty"><p>${c.k === "cds_5y" ? "Belum ada riwayat. CDS diisi manual di docs/data/manual.json; setiap isian tercatat sebagai satu titik." : "Riwayat sedang dikumpulkan, satu titik per hari sejak sumber ini dipasang."}</p></div>`}
+        ${c.rows.length >= 2 ? `<div class="chart sm" data-k="${c.k}"></div>` : `<div class="empty"><p>${c.k === "cds_5y" ? "Riwayat dikumpulkan satu titik setiap kali berita baru menyebut angka CDS." : "Riwayat sedang dikumpulkan, satu titik per hari sejak sumber ini dipasang."}</p></div>`}
         ${c.y && c.rows.length ? `<p class="note">Riwayat sejak ${tgl(c.rows[0][0])} (${c.rows.length} titik).</p>` : ""}
       </div>`).join("")}</div>
-    <p class="note">Sumber: Frankfurter (kurs ECB) dan Yahoo Finance untuk USD/IDR, IHSG, WTI; AsianBondsOnline (ADB) untuk yield SBN; CDS 5Y diisi manual karena tidak ada sumber gratis resmi. Warna: untuk USD/IDR (rupiah melemah), yield dan CDS, kenaikan ditandai merah.</p>`;
+    <p class="note">Sumber: Frankfurter (kurs ECB) dan Yahoo Finance untuk USD/IDR, IHSG, WTI; AsianBondsOnline (ADB) untuk yield SBN; yield 1Y dan komoditas dari TradingView; CDS 5Y diambil dari angka yang disebut berita (Google News), atau manual.json bila lebih baru. Warna: untuk USD/IDR (rupiah melemah), yield dan CDS, kenaikan ditandai merah.</p>`;
   if (!chartReady()) return;
   const made = [];
   for (const c of charts) {
@@ -994,6 +1040,203 @@ def("market", "market", "Ringkasan pasar: makro, breadth, top gainer/loser/terak
     ${!mf || !mb ? `<div class="empty" style="margin-top:12px"><b>Data ${!mf && !mb ? "foreign dan broker" : !mf ? "foreign" : "broker"} belum tersedia.</b><p>${flowProblem() || "Diambil setiap hari bursa pukul 19:30 WIB."}</p></div>` : ""}
     <div class="btns rel">${cmdBtn("foreign")}${cmdBtn("brokers")}${cmdBtn("bandar screen")}${cmdBtn("screen rsi<30,value>1B")}</div>`;
 });
+
+/* ---------- peta pasar, dashboard, indeks, dividen (sumber: tv/, idx/, summary, fundamentals) ---------- */
+const SECTOR_ID = {
+  Finance: "Keuangan", "Energy Minerals": "Energi", "Non-Energy Minerals": "Tambang & mineral", Communications: "Telekomunikasi",
+  "Consumer Non-Durables": "Barang konsumsi", "Consumer Durables": "Barang tahan lama", "Retail Trade": "Ritel", Utilities: "Utilitas",
+  "Industrial Services": "Jasa industri", "Process Industries": "Industri proses", "Producer Manufacturing": "Manufaktur",
+  Transportation: "Transportasi", "Technology Services": "Teknologi", "Electronic Technology": "Elektronik", "Health Technology": "Farmasi & alkes",
+  "Health Services": "Layanan kesehatan", "Commercial Services": "Jasa komersial", "Distribution Services": "Distribusi",
+  "Consumer Services": "Jasa konsumen", Miscellaneous: "Lainnya",
+  /* sektor Yahoo (cadangan) */
+  "Financial Services": "Keuangan", Energy: "Energi", "Basic Materials": "Bahan dasar", "Communication Services": "Telekomunikasi",
+  "Consumer Defensive": "Barang konsumsi", "Consumer Cyclical": "Konsumsi siklikal", Industrials: "Industri", "Real Estate": "Properti",
+  Healthcare: "Kesehatan", Technology: "Teknologi",
+};
+const IDX_SECTORS = { IDXENERGY: "Energi", IDXBASIC: "Barang baku", IDXINDUST: "Perindustrian", IDXNONCYC: "Konsumen primer", IDXCYCLIC: "Konsumen non-primer",
+  IDXHEALTH: "Kesehatan", IDXFINANCE: "Keuangan", IDXPROPERT: "Properti & real estat", IDXTECHNO: "Teknologi", IDXINFRA: "Infrastruktur", IDXTRANS: "Transportasi & logistik" };
+const MAP_PERIODS = [["chg", "1 hari", 3], ["r1w", "1 minggu", 6], ["r1m", "1 bulan", 10], ["r3m", "3 bulan", 20], ["rytd", "YTD", 30]];
+
+/* Data peta: TradingView (sektor + kapitalisasi + performa) atau cadangan dari summary + fundamental. */
+async function mapData() {
+  const tv = await getJSON("tv/stocks.json", true);
+  if (tv?.stocks && Object.keys(tv.stocks).length > 50) {
+    return { src: "TradingView", updated: tv.updated, rows: Object.entries(tv.stocks).filter(([, x]) => isNum(x.mcap) && x.mcap > 0)
+      .map(([code, x]) => ({ code, name: x.name, sector: SECTOR_ID[x.sector] || x.sector || "Lainnya", size: x.mcap, close: x.close, chg: x.chg, r1w: x.r1w, r1m: x.r1m, r3m: x.r3m, rytd: x.rytd })) };
+  }
+  const [s, f] = await Promise.all([summary(), getJSON("fundamentals.json", true)]);
+  const fs = f?.stocks || {};
+  return { src: "Yahoo (cadangan)", updated: s.updated, rows: s.stocks.filter((x) => fs[x.symbol]?.mcap)
+    .map((x) => ({ code: x.symbol, sector: SECTOR_ID[fs[x.symbol].sector] || fs[x.symbol].sector || "Lainnya", size: fs[x.symbol].mcap, close: x.price, chg: x.change_pct })) };
+}
+
+/* Treemap squarified (Bruls dkk.): kotak sebanding ukuran, rasio sisi sedekat mungkin ke 1. */
+function squarify(items, x, y, w, h) {
+  const out = [], total = items.reduce((t, i) => t + i.v, 0);
+  if (!total || w <= 0 || h <= 0) return out;
+  const scale = (w * h) / total;
+  let rest = items.map((i) => ({ ...i, a: i.v * scale }));
+  const worst = (row, side) => { const s = row.reduce((t, r) => t + r.a, 0), mx = Math.max(...row.map((r) => r.a)), mn = Math.min(...row.map((r) => r.a)); return Math.max((side * side * mx) / (s * s), (s * s) / (side * side * mn)); };
+  while (rest.length) {
+    const side = Math.min(w, h);
+    let row = [rest[0]], i = 1;
+    while (i < rest.length && worst([...row, rest[i]], side) <= worst(row, side)) { row.push(rest[i]); i++; }
+    const s = row.reduce((t, r) => t + r.a, 0);
+    if (w >= h) { const cw = s / h; let cy = y; for (const r of row) { const rh = r.a / cw; out.push({ ...r, x, y: cy, w: cw, h: rh }); cy += rh; } x += cw; w -= cw; }
+    else { const rh = s / w; let cx = x; for (const r of row) { const rw = r.a / rh; out.push({ ...r, x: cx, y, w: rw, h: rh }); cx += rw; } y += rh; h -= rh; }
+    rest = rest.slice(i);
+  }
+  return out;
+}
+function tileColor(v, lim) {
+  if (!isNum(v)) return "var(--map-flat)";
+  const t = Math.min(1, Math.abs(v) / lim) ** 0.75;
+  return `color-mix(in oklab, ${v >= 0 ? "var(--map-up)" : "var(--map-down)"} ${Math.round(18 + t * 82)}%, var(--map-flat))`;
+}
+function drawMap(el, rows, key, lim) {
+  const W = el.clientWidth, H = el.clientHeight;
+  if (!W || !H) return;
+  const small = W < 640, maxN = small ? 90 : 260;
+  const top = rows.slice().sort((a, b) => b.size - a.size).slice(0, maxN);
+  const bySec = {};
+  for (const r of top) (bySec[r.sector] ||= []).push(r);
+  const secs = Object.entries(bySec).map(([name, rs]) => ({ name, v: rs.reduce((t, r) => t + r.size, 0), rs })).sort((a, b) => b.v - a.v);
+  const html = [];
+  for (const s of squarify(secs, 0, 0, W, H)) {
+    const pad = 1, head = s.h > 60 && s.w > 70 ? 18 : 0;
+    const wsum = s.rs.reduce((t, r) => t + r.size, 0);
+    const sv = s.rs.reduce((t, r) => t + (isNum(r[key]) ? r[key] * r.size : 0), 0) / (wsum || 1);
+    html.push(`<div class="mp-sec" style="left:${s.x}px;top:${s.y}px;width:${s.w}px;height:${s.h}px">${head ? `<div class="mp-sh"><span>${esc(s.name)}</span><b>${isNum(sv) ? (sv > 0 ? "+" : "") + nf(sv, 1) + "%" : ""}</b></div>` : ""}</div>`);
+    for (const t of squarify(s.rs.map((r) => ({ ...r, v: r.size })), s.x + pad, s.y + head + pad, s.w - 2 * pad, s.h - head - 2 * pad)) {
+      const v = t[key], big1 = t.w > 54 && t.h > 34, big2 = t.w > 90 && t.h > 56;
+      html.push(`<a class="mp-t${big2 ? " xl" : ""}" data-go="#/s/${esc(t.code)}" title="${esc(t.code)} ${esc(t.name || "")}: ${isNum(v) ? (v > 0 ? "+" : "") + nf(v, 2) + "%" : "–"}"
+        style="left:${t.x}px;top:${t.y}px;width:${Math.max(0, t.w - 1)}px;height:${Math.max(0, t.h - 1)}px;background:${tileColor(v, lim)}">${big1 ? `<b>${esc(t.code)}</b><span>${isNum(v) ? (v > 0 ? "+" : "") + nf(v, 1) + "%" : ""}</span>` : ""}</a>`);
+    }
+  }
+  el.innerHTML = html.join("");
+}
+function mountMap(holder, data, startKey = "chg") {
+  const el = holder.querySelector(".mp"), seg = holder.querySelector("[data-mp]");
+  let key = startKey;
+  const lim = () => MAP_PERIODS.find((p) => p[0] === key)[2];
+  const paint = () => drawMap(el, data.rows, key, lim());
+  seg?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-k]");
+    if (!b) return;
+    key = b.dataset.k;
+    seg.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    holder.querySelector(".mp-scale").innerHTML = mapScale(lim());
+    paint();
+  });
+  let to;
+  new ResizeObserver(() => { clearTimeout(to); to = setTimeout(paint, 80); }).observe(el);
+  paint();
+}
+const mapScale = (lim) => `<span>−${lim}%</span><i></i><span>+${lim}%</span>`;
+function mapBlock(data) {
+  const periods = data.src === "TradingView" ? MAP_PERIODS : MAP_PERIODS.slice(0, 1);
+  return `<section class="mapwrap" data-map>
+    <div class="mp-bar"><div class="seg" data-mp role="group" aria-label="Periode">${periods.map(([k, l], i) => `<button data-k="${k}" aria-pressed="${i === 0}">${l}</button>`).join("")}</div>
+      <div class="mp-scale" aria-hidden="true">${mapScale(MAP_PERIODS[0][2])}</div></div>
+    <div class="mp" role="img" aria-label="Peta pasar: luas kotak = kapitalisasi pasar, warna = perubahan harga"></div>
+    <p class="note">Luas kotak = kapitalisasi pasar, warna = perubahan harga. Ketuk kotak untuk membuka saham. Sumber ${esc(data.src)}, ${wib(data.updated)}.</p>
+  </section>`;
+}
+
+/* data foreign gabungan: BEI (semua saham, lembar × close) */
+async function foreignIdx() { return getJSON("idx/foreign.json", true); }
+function foreignHistSvg(hist) {
+  const pts = (hist || []).slice(-20);
+  if (pts.length < 2) return "";
+  const mx = Math.max(...pts.map((p) => Math.abs(p.net))) || 1, bw = 100 / pts.length;
+  return `<svg class="fbars" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Net asing 20 hari bursa terakhir">
+    <line x1="0" x2="100" y1="20" y2="20" class="zero"/>${pts.map((p, i) => { const hgt = (Math.abs(p.net) / mx) * 19; return `<rect x="${(i * bw + bw * 0.15).toFixed(2)}" width="${(bw * 0.7).toFixed(2)}" y="${p.net >= 0 ? 20 - hgt : 20}" height="${Math.max(0.4, hgt)}" class="${p.net >= 0 ? "up" : "down"}"><title>${tgl(p.date)}: ${big(p.net)}</title></rect>`; }).join("")}</svg>`;
+}
+
+def("dashboard", "dashboard", "Beranda: peta pasar per sektor, IHSG, sektor, asing, komoditas, time to buy, tema berita.", async (a, body) => {
+  const [s, md, fx, ix, tvq, sig, th, air, macro] = await Promise.all([summary(), mapData(), foreignIdx(), getJSON("idx/indices.json", true),
+    getJSON("tv/quotes.json", true), getJSON("signals.json", true), getJSON("news/themes.json", true), getJSON("ai/latest.json", true), getJSON("data.json", true)]);
+  const last = s.stocks.reduce((m, x) => (x.date > m ? x.date : m), "");
+  const today = s.stocks.filter((x) => x.date === last);
+  const up = today.filter((x) => x.change_pct > 0).length, down = today.filter((x) => x.change_pct < 0).length, flat = today.length - up - down;
+  const ih = macro?.ihsg, val = today.reduce((t, x) => t + (x.value || 0), 0);
+  const liquid = today.filter((x) => (x.value || 0) >= 1e9);
+  const list = (rows, f) => `<ol class="rank">${rows.map((r) => `<li><span>${symLink(r.symbol || r.code)}</span><span>${f(r)}</span></li>`).join("")}</ol>`;
+  /* sektor: indeks IDX-IC resmi kalau ada, kalau tidak rata-rata tertimbang dari peta */
+  let sectors = (ix?.indices || []).filter((x) => IDX_SECTORS[x.code]).map((x) => ({ name: IDX_SECTORS[x.code], chg: x.chg, r5: x.r5, r20: x.r20 }));
+  let secSrc = ix ? `Indeks sektor IDX-IC, ${tgl(ix.date)}` : "";
+  if (!sectors.length) {
+    const agg = {};
+    for (const r of md.rows) { const g = (agg[r.sector] ||= { w: 0, c: 0 }); if (isNum(r.chg)) { g.w += r.size; g.c += r.chg * r.size; } }
+    sectors = Object.entries(agg).filter(([, g]) => g.w).map(([name, g]) => ({ name, chg: g.c / g.w }));
+    secSrc = "Rata-rata tertimbang kapitalisasi";
+  }
+  sectors.sort((x, y) => (y.chg ?? -99) - (x.chg ?? -99));
+  const smax = Math.max(...sectors.map((x) => Math.abs(x.chg || 0)), 0.5);
+  const secBars = `<ul class="sbars">${sectors.map((x) => `<li><span>${esc(x.name)}</span><i><em class="${cls(x.chg)}" style="width:${(Math.abs(x.chg || 0) / smax) * 50}%;${x.chg >= 0 ? "left:50%" : `right:50%`}"></em></i><b>${pct(x.chg)}</b></li>`).join("")}</ul>`;
+  const quotes = Object.values(tvq?.quotes || {});
+  const qcards = (grp) => quotes.filter((q) => q.group === grp).map((q) => `<div class="qt"><span>${esc(q.label)}</span><b>${nf(q.value, q.value < 20 ? 2 : 0)}${q.unit === "%" ? "%" : ""}</b>${pct(q.chg_pct)}</div>`).join("");
+  const combined = sig ? sig.lists.combined.filter((c) => sig.stocks[c].c?.status === "beli").slice(0, 6) : [];
+  const ttbList = sig ? (combined.length ? combined : sig.lists.technical.filter((c) => sig.stocks[c].t?.status === "beli").slice(0, 6)) : [];
+  const themes = (th?.themes || []).filter((t) => t.active && t.dir !== "flat").slice(0, 4);
+  body.innerHTML = `
+    <section class="hero">
+      <div class="hx">
+        <p class="hx-l">IHSG · ${esc(tgl(ih?.date || last))}</p>
+        <p class="hx-v">${ih ? nf(ih.value, 2) : "–"} <span class="${cls(ih?.change_pct)}">${ih && isNum(ih.change_pct) ? (ih.change_pct > 0 ? "▲ +" : "▼ ") + nf(ih.change_pct, 2) + "%" : ""}</span></p>
+        <div class="breadth" title="Naik ${up}, tetap ${flat}, turun ${down}"><i class="up" style="flex:${up}"></i><i class="flat" style="flex:${flat}"></i><i class="down" style="flex:${down}"></i></div>
+        <p class="hx-s"><span class="up">${nf(up)} naik</span> <span class="down">${nf(down)} turun</span> <span class="muted">${nf(flat)} tetap · transaksi ${big(val)}</span></p>
+      </div>
+      ${fx ? `<div class="hx hx-f"><p class="hx-l">Asing hari ini</p><p class="hx-v sm">${sgn(fx.market.net)}</p>${foreignHistSvg(fx.market_hist)}<p class="hx-s muted">20 hari bursa · beli ${big(fx.market.buy)} · jual ${big(fx.market.sell)}</p></div>` : ""}
+    </section>
+    ${mapBlock(md)}
+    <div class="dgrid">
+      <section class="blk"><h2>Sektor hari ini</h2>${secBars}<p class="note">${esc(secSrc)}</p></section>
+      ${fx ? `<section class="blk"><h2>Asing paling banyak beli</h2>${list(fx.top_buy.slice(0, 6), (r) => sgn(r.net_val))}<h2>Asing paling banyak jual</h2>${list(fx.top_sell.slice(0, 6), (r) => sgn(r.net_val))}<div class="btns">${cmdBtn("foreign", "Semua foreign flow")}</div></section>` : ""}
+      <section class="blk"><h2>Naik terbanyak</h2>${list(sortRows(liquid, (x) => x.change_pct, false).slice(0, 6), (r) => pct(r.change_pct))}<h2>Turun terbanyak</h2>${list(sortRows(liquid, (x) => x.change_pct, true).slice(0, 6), (r) => pct(r.change_pct))}<p class="note">Saham dengan transaksi ≥ Rp1 M.</p></section>
+      <section class="blk"><h2>Paling ramai</h2>${list(sortRows(today, (x) => x.value, false).slice(0, 8), (r) => big(r.value))}</section>
+      ${ttbList.length ? `<section class="blk"><h2>Time to buy</h2>${list(ttbList.map((c) => ({ code: c, ...sig.stocks[c] })), (r) => `<span class="st st-beli">${r.c?.status === "beli" ? "gabungan" : "teknikal"} ${r.c?.status === "beli" ? r.c.score : r.t.score}</span>`)}<div class="btns">${cmdBtn("buy", "Lihat watchlist")}</div></section>` : ""}
+      ${themes.length ? `<section class="blk"><h2>Tema berita</h2><ul class="themes">${themes.map((t) => `<li><b>${esc(t.label)} ${arrow(t.dir)}</b><span>${[...(t.dir === "up" ? t.pos : t.neg).map((g) => `<em class="up">${esc(g.label)}</em>`), ...(t.dir === "up" ? t.neg : t.pos).map((g) => `<em class="down">${esc(g.label)}</em>`)].join(" ")}</span></li>`).join("")}</ul><div class="btns">${cmdBtn("news", "Semua tema")}</div></section>` : ""}
+      ${quotes.length ? `<section class="blk wide"><h2>Komoditas, yield, dolar</h2><div class="qts">${qcards("komoditas")}${qcards("yield")}${qcards("fx")}</div><div class="btns">${cmdBtn("macro", "Makro lengkap")}</div></section>` : ""}
+      ${air && air.date >= last ? `<section class="blk wide">${aiCard(air)}</section>` : ""}
+    </div>`;
+  mountMap(body.querySelector("[data-map]"), md);
+}, ["beranda", "home"]);
+
+def("map", "map", "Peta pasar: semua saham besar per sektor, luas = kapitalisasi, warna = perubahan.", async (a, body) => {
+  const md = await mapData();
+  body.innerHTML = mapBlock(md).replace('class="mapwrap"', 'class="mapwrap tall"');
+  mountMap(body.querySelector("[data-map]"), md);
+}, ["peta", "heatmap"]);
+
+def("indices", "indices", "Semua indeks BEI: IHSG, LQ45, IDX30, indeks sektor, syariah, dll. Perubahan 1/5/20 hari.", async () => {
+  const ix = await getJSON("idx/indices.json", true);
+  need(ix?.indices?.length, "Data indeks BEI belum ada. Diambil workflow bei setiap sore (sumber idx.co.id).");
+  const sp = (h) => spark(h || []);
+  const order = (x) => (x.code === "COMPOSITE" ? 0 : IDX_SECTORS[x.code] ? 2 : 1);
+  const rows = ix.indices.slice().sort((p, q) => order(p) - order(q) || (q.value || 0) - (p.value || 0));
+  return table([
+    { h: "Indeks", f: (r) => `<b>${esc(r.code === "COMPOSITE" ? "IHSG" : r.code)}</b>${IDX_SECTORS[r.code] ? `<br><span class="muted">${esc(IDX_SECTORS[r.code])}</span>` : ""}` },
+    { h: "Penutupan", n: 1, f: (r) => nf(r.close, 2) }, { h: "1 hari", n: 1, f: (r) => pct(r.chg) }, { h: "5 hari", n: 1, f: (r) => pct(r.r5) }, { h: "20 hari", n: 1, f: (r) => pct(r.r20) },
+    { h: "Tren", f: (r) => `<span class="spk">${sp(r.hist)}</span>` }, { h: "Nilai", n: 1, f: (r) => big(r.value) }, { h: "Saham", n: 1, f: (r) => nf(r.n) },
+  ], rows) + `<p class="note">Sumber idx.co.id (GetIndexSummary), sesi ${esc(tgl(ix.date))}. Riwayat bertambah satu hari per sesi.</p>`;
+}, ["indeks", "sektor"]);
+
+def("dividends", "dividends", "Kalender dividen: ex-date yang akan datang dan yang baru lewat, dengan yield dan nilai dividen terakhir.", async () => {
+  const f = await getJSON("fundamentals.json", true);
+  need(f?.stocks, "Data fundamental belum ada.");
+  const today = new Date().toISOString().slice(0, 10), back = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+  const rows = Object.entries(f.stocks).map(([code, x]) => ({ code, ...x })).filter((x) => x.ex_div);
+  const next = rows.filter((x) => x.ex_div >= today).sort((p, q) => (p.ex_div < q.ex_div ? -1 : 1));
+  const past = rows.filter((x) => x.ex_div < today && x.ex_div >= back).sort((p, q) => (p.ex_div > q.ex_div ? -1 : 1));
+  const cols = [{ h: "Kode", f: (r) => symLink(r.code) }, { h: "Ex-date", f: (r) => esc(tgl(r.ex_div)) }, { h: "Dividen terakhir", n: 1, f: (r) => (isNum(r.last_div) ? "Rp" + nf(r.last_div, r.last_div < 10 ? 2 : 0) : "–") },
+    { h: "Yield 12 bln", n: 1, f: (r) => (isNum(r.div_yield) ? nf(r.div_yield, 1) + "%" : "–") }, { h: "Payout", n: 1, f: (r) => (isNum(r.payout) ? nf(r.payout, 0) + "%" : "–") }];
+  const withData = rows.length;
+  return `<h3>Akan datang</h3>${table(cols, next, "Belum ada ex-date mendatang yang tercatat.")}
+    <h3>45 hari terakhir</h3>${table(cols, past, "Tidak ada.")}
+    <p class="note">Dari data Yahoo Finance yang diambil bergilir bersama fundamental (${nf(withData)} saham punya tanggal ex-dividen). Selalu cocokkan dengan pengumuman resmi emiten di BEI sebelum bertransaksi.</p>`;
+}, ["dividen"]);
 
 def("hsc", "hsc [--new] [--sort pct|value|chg]", "Daftar saham Kepemilikan Saham Terkonsentrasi Tinggi (HSC) dari pengumuman BEI terakhir.", async (a) => {
   need(HSC?.codes?.length, "Daftar HSC belum tersedia (file data/hsc.json kosong).");
