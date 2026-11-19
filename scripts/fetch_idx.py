@@ -101,6 +101,9 @@ class Browser:
             time.sleep(1.5)
         else:
             raise RuntimeError("tantangan Cloudflare tidak selesai di browser")
+        head = self.p.content()[:6000]
+        if "Sorry, you have been blocked" in head or "Attention Required" in head:
+            raise RuntimeError("Cloudflare memblokir jaringan ini (halaman 'you have been blocked')")
 
     def get(self, path):
         status, text = self.p.evaluate(

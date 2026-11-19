@@ -136,8 +136,8 @@ Uji tanpa mengirim Telegram: `python scripts/ai_report.py full --no-send --force
 Cloudflare idx.co.id menolak curl_cffi dan browser dari GitHub Actions. Data lama tetap tayang.
 
 1. Coba ulang dengan browser: `gh workflow run bei.yml -f cara=browser`.
-2. Dari laptop (IP rumah biasanya lolos): `pip install curl_cffi && python scripts/fetch_idx.py --days 5`, lalu `./scripts/update_lokal.sh deploy` untuk menerbitkan.
-3. Permanen: pasang runner self-hosted GitHub di WSL dan ubah `runs-on` di `bei.yml` menjadi `self-hosted` (laptop harus menyala sore hari).
+2. Dari laptop (IP rumah biasanya lolos): `./scripts/bei_lokal.sh` (pertama kali `./scripts/bei_lokal.sh 40`). Skrip mengambil data lalu menerbitkan hanya `data/idx`. Uji tanpa terbit: `NO_DEPLOY=1 ./scripts/bei_lokal.sh`.
+3. Otomatis dari laptop: pasang runner self-hosted GitHub di WSL (Settings → Actions → Runners → New self-hosted runner → Linux), jalankan sebagai service, lalu `gh variable set BEI_RUNNER --body self-hosted`. Run bei menunggu sampai laptop menyala, lalu jalan sendiri. Kembali ke cloud: `gh variable delete BEI_RUNNER`.
 
 Pertama kali, isi riwayat 40 hari: `gh workflow run bei.yml -f hari=40`.
 
