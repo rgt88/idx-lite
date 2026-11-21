@@ -1,0 +1,1 @@
+{"checked":"2026-11-20T18:02:46.885276+00:00","wanted":["2026-11-20"],"errors":["curl_cffi: halaman BEI menantang (HTTP 403)"],"state":"ok","last_date":"2026-11-20","method":"playwright","got":["2026-11-20"]}

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IDX Lite</title>
+<meta name="description" content="Pantau saham Indonesia: peta pasar per sektor, foreign flow, broker, bandarmology, time to buy, berita dan tema, makro dan komoditas.">
+<meta name="theme-color" content="#14264d" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b1424" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="terminal.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="app">
+<a class="skip" href="#view">Langsung ke isi</a>
+<header class="appbar">
+  <div class="appbar-in">
+    <a class="brand" href="#/" aria-label="IDX Lite, beranda"><span class="mark" aria-hidden="true"></span><b>idx</b>lite</a>
+    <form id="search" role="search" autocomplete="off">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Cari saham: BBCA, Telkom, batubara…" aria-label="Cari saham"
+             role="combobox" aria-expanded="false" aria-controls="qlist" aria-autocomplete="list" enterkeyhint="search">
+      <ul id="qlist" role="listbox" hidden></ul>
+    </form>
+    <a class="term" href="terminal.html" title="Mode terminal: ketik perintah">Terminal</a>
+  </div>
+  <nav class="mainnav" aria-label="Menu utama">
+    <a href="#/" data-page="pasar">Pasar</a>
+    <a href="#/peta" data-page="peta">Peta</a>
+    <a href="#/beli" data-page="beli">Time to buy</a>
+    <a href="#/foreign" data-page="foreign">Asing</a>
+    <a href="#/broker" data-page="broker">Broker</a>
+    <a href="#/bandar" data-page="bandar">Bandar</a>
+    <a href="#/berita" data-page="berita">Berita</a>
+    <a href="#/indeks" data-page="indeks">Sektor</a>
+    <a href="#/makro" data-page="makro">Makro</a>
+    <a href="#/dividen" data-page="dividen">Dividen</a>
+    <a href="#/kepemilikan" data-page="kepemilikan">KSEI</a>
+    <a href="#/screener" data-page="screener">Screener</a>
+    <a href="#/hsc" data-page="hsc">HSC</a>
+    <a href="#/ai" data-page="ai">Laporan AI</a>
+  </nav>
+</header>
+
+<main id="view" tabindex="-1"></main>
+
+<footer class="foot">
+  <span id="fresh">Memuat status data…</span>
+  <span><a href="#/menu">Semua menu</a> · <a href="terminal.html">Mode terminal</a> · <a href="board.html">Papan tabel</a></span>
+  <span>Data tertunda dari BEI (idx.co.id), Yahoo Finance, TradingView, Indo Premier, KSEI, AsianBondsOnline dan portal berita. Hanya informasi, bukan saran investasi.</span>
+</footer>
+
+<nav class="tabbar" aria-label="Menu cepat">
+  <a href="#/" data-page="pasar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M6 16V9m5 7V5m5 11v-5m4 5V8"/></svg><span>Pasar</span></a>
+  <a href="#/beli" data-page="beli"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg><span>Time to buy</span></a>
+  <a href="#/foreign" data-page="foreign"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></svg><span>Asing</span></a>
+  <a href="#/berita" data-page="berita"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11v16H6a1 1 0 0 1-1-1zM16 8h3v11a1 1 0 0 1-1 1h-2M8 8h5M8 12h5M8 16h3"/></svg><span>Berita</span></a>
+  <a href="#/menu" data-page="menu" data-also="peta indeks makro broker bandar dividen kepemilikan screener hsc ai"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Lainnya</span></a>
+</nav>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
