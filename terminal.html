@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDX Lite · Terminal</title>
+<meta name="description" content="Terminal saham Indonesia di peramban: harga, teknikal, fundamental, foreign flow dan broker summary.">
+<link rel="stylesheet" href="terminal.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="terminal.html"><b>idx</b>lite <span class="muted">terminal</span></a>
+  <nav>
+    <a href="?cmd=help" data-cmd="help">Perintah</a>
+    <a href="./">Tampilan biasa</a>
+  </nav>
+</header>
+
+<div class="bar">
+  <form id="form" autocomplete="off">
+    <label for="cmd" class="prompt">idx&nbsp;›</label>
+    <input id="cmd" name="cmd" spellcheck="false" autocapitalize="characters" enterkeyhint="go"
+           placeholder="BBCA · broker BBCA · foreign · bandar screen · help"
+           role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="sugg">
+    <button type="submit" aria-label="Jalankan">↵</button>
+  </form>
+  <ul id="sugg" role="listbox" hidden></ul>
+</div>
+
+<main id="results" aria-live="polite"></main>
+
+<footer class="foot">
+  <span id="fresh">Memuat status data…</span>
+  <span>Data tertunda dari Yahoo Finance, Indo Premier (lewat <a href="https://github.com/fzn0x/idx">idx</a>) dan Frankfurter. Hanya informasi, bukan saran investasi.</span>
+  <span class="keys"><kbd>/</kbd> baris perintah · <kbd>↑</kbd><kbd>↓</kbd> riwayat · <kbd>Tab</kbd> lengkapi · <kbd>J</kbd><kbd>K</kbd> pindah panel</span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="core.js"></script>
+<script src="terminal.js"></script>
+</body>
+</html>

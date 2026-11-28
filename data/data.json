@@ -1,0 +1,74 @@
+{
+  "usdidr": {
+    "value": 18378,
+    "unit": "IDR",
+    "date": "2026-11-27",
+    "source": "frankfurter.dev",
+    "previous_close": 18394,
+    "change_pct": -0.09
+  },
+  "ihsg": {
+    "value": 5338.46,
+    "previous_close": 5242.1719,
+    "change_pct": 1.84,
+    "date": "2026-11-27",
+    "currency": "IDR",
+    "source": "yahoo_finance"
+  },
+  "crude_oil": {
+    "value": 83.08,
+    "previous_close": 83.68,
+    "change_pct": -0.72,
+    "date": "2026-11-27",
+    "currency": "USD",
+    "source": "yahoo_finance",
+    "type": "WTI Crude Oil Futures",
+    "unit": "USD/barrel"
+  },
+  "last_updated": "2026-11-28T03:28:12.580043+07:00",
+  "last_run_status": {
+    "usdidr": "ok",
+    "ihsg": "ok",
+    "crude_oil": "ok",
+    "bond_2y": "ok",
+    "bond_5y": "ok",
+    "bond_10y": "ok",
+    "cds_5y": "manual: belum diisi",
+    "bond_1y": "ok (TradingView)"
+  },
+  "bond_2y": {
+    "value": 7.059,
+    "unit": "%",
+    "source": "asianbondsonline.adb.org",
+    "chg_1d_bp": 1.6,
+    "chg_1w_bp": -4.3,
+    "chg_ytd_bp": 195.7,
+    "date": "2026-11-26"
+  },
+  "bond_5y": {
+    "value": 7.556,
+    "unit": "%",
+    "source": "asianbondsonline.adb.org",
+    "chg_1d_bp": 2.5,
+    "chg_1w_bp": -2.0,
+    "chg_ytd_bp": 188.6,
+    "date": "2026-11-26"
+  },
+  "bond_10y": {
+    "value": 7.764,
+    "unit": "%",
+    "source": "asianbondsonline.adb.org",
+    "chg_1d_bp": 1.5,
+    "chg_1w_bp": -1.0,
+    "chg_ytd_bp": 157.0,
+    "date": "2026-11-26"
+  },
+  "cds_5y": null,
+  "bond_1y": {
+    "value": 7.123,
+    "date": "2026-11-28",
+    "unit": "%",
+    "chg_1d_bp": 12.3,
+    "source": "TradingView"
+  }
+}

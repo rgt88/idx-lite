@@ -1,0 +1,1 @@
+{"checked":"2026-11-27T19:12:27.447152+00:00","wanted":["2026-11-27","2026-11-26","2026-11-25","2026-11-24","2026-11-23"],"errors":["curl_cffi: halaman BEI menantang (HTTP 403)","playwright: GetIndexSummary: HTTP 403, bukan JSON"],"state":"diblokir","last_date":"2026-11-20","method":"playwright","got":["2026-11-20"]}
